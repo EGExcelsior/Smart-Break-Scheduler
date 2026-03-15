@@ -1,0 +1,19 @@
+{
+  "zones": {
+    "Central_Zone": {
+      "name": "Central Zone",
+      "description": "Central Zone - rides and retail units in central area",
+      "file": "Central_Zone.xlsx"
+    },
+    "Left_Zone": {
+      "name": "Left Zone",
+      "description": "Left Zone - rides and retail units on left side",
+      "file": "Left_Zone.xlsx"
+    },
+    "Right_Zone": {
+      "name": "Right Zone",
+      "description": "Right Zone - rides and retail units on right side",
+      "file": "Right_Zone.xlsx"
+    }
+  }
+}
