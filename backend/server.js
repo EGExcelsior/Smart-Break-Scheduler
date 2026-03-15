@@ -2538,13 +2538,13 @@ app.post('/api/auto-assign', upload.fields([
       
       if (explorerIsBaseline && schoolsIsBaseline) {
         // Both Explorer and Schools in baseline (Day Code G only)
-        AFTERNOON_TARGETS['Explorer Entrance'] = 4;  // Highest priority
+        AFTERNOON_TARGETS['Explorer Entrance'] = 3;  // Target 3 afternoon staff
         AFTERNOON_TARGETS['Lodge Entrance'] = 3;
         AFTERNOON_TARGETS['Schools Entrance'] = 3;
         AFTERNOON_TARGETS['Azteca Entrance'] = 2;
       } else if (explorerIsBaseline && !schoolsIsBaseline) {
         // Explorer baseline (Day Codes E, F, H, I - Explorer 5PM/6PM/7PM)
-        AFTERNOON_TARGETS['Explorer Entrance'] = 4;  // Priority entrance
+        AFTERNOON_TARGETS['Explorer Entrance'] = 3;  // Target 3 afternoon staff
         AFTERNOON_TARGETS['Lodge Entrance'] = 3;
         AFTERNOON_TARGETS['Azteca Entrance'] = 2;
         // If Schools manually added, give it minimum
@@ -2831,7 +2831,7 @@ app.post('/api/auto-assign', upload.fields([
         );
         
         const bjTarget = 2; // Minimum needed
-        const bjCurrent = bjAfternoonStaff.length;
+        let bjCurrent = bjAfternoonStaff.length;
         
         console.log(`   📊 ${bjUnit}: ${bjCurrent}/${bjTarget} afternoon staff`);
         
