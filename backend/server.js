@@ -86,7 +86,7 @@ const UNIT_CATEGORIES = {
     'Blue Barnacle', 'Trawler Trouble', 'Barrel Bail Out', 'Seastorm', 'Ostrich Stampede'
   ],
   'Admissions': [
-    'Lodge Entrance', 'Azteca Entrance', 'Explorer Entrance', 'Schools Entrance', 'Explorer Supplies'
+    'Lodge Entrance', 'Explorer Entrance', 'Schools Entrance', 'Explorer Supplies'
   ],
   'Retail': [
     // === NEXUS RETAIL ===
@@ -207,7 +207,7 @@ function hasSkillForUnit(staffName, targetUnit, skillsData) {
   }
   
   const unitSkillMap = {
-    'Lodge Entrance': 'Admissions', 'Azteca Entrance': 'Admissions', 'Explorer Entrance': 'Admissions', 'Schools Entrance': 'Admissions',
+    'Lodge Entrance': 'Admissions': 'Admissions', 'Explorer Entrance': 'Admissions', 'Schools Entrance': 'Admissions',
     'Adventures Point Gift Shop': 'Adventure Point Gift Shop', 'Sweet Shop': 'Sweet Shop', 'Sealife': 'Sea Life', 'Lorikeets': 'Retail',
     'Car Parks - Staff Car Park': 'Car Parks', 'Car Parks - Hotel Car Park': 'Car Parks', 'Car Parks - Express': 'Car Parks',
     'Car Parks - Split': 'Car Parks', 'Car Parks - Flamingo': 'Car Parks', 'Car Parks - Giraffe': 'Car Parks', 'Car Parks - Gorilla': 'Car Parks',
@@ -231,7 +231,7 @@ function hasSkillForUnit(staffName, targetUnit, skillsData) {
 function getPositionForUnit(unit) {
   const positionMap = {
     'Gift Shop': 'Retail Host', 'Adventures Point Gift Shop': 'Retail Host', 'Sweet Shop': 'Retail Host', 'Sealife': 'Retail Host',
-    'Lodge Entrance': 'Admissions Host', 'Azteca Entrance': 'Admissions Host', 'Explorer Entrance': 'Admissions Host', 'Schools Entrance': 'Admissions Host',
+    'Lodge Entrance': 'Admissions Host': 'Admissions Host', 'Explorer Entrance': 'Admissions Host', 'Schools Entrance': 'Admissions Host',
     'Car Parks - Staff Car Park': 'Car Parks Host', 'Car Parks - Hotel Car Park': 'Car Parks Host'
   };
   return positionMap[unit] || `${unit} Host`;
@@ -910,10 +910,18 @@ function getPreferredBreakSlot(assignment, breakSlots, allAssignments) {
     return breakSlots[1]; // 12:00
   }
   
-  // Priority 5: LATE STARTERS (11:00+) → always 14:00, cascade to 15:00 only
-  if (startMinutes >= 660) {
-    console.log(`   ⏰ ${assignment.staff || 'Staff'}: Late starter (${startTime}) → 14:00 break`);
-    return breakSlots[3]; // 14:00
+  // Priority 5: LATE STARTERS (11:00+) → 13:00 for early closes, 14:00 for late closes
+  if (startMinutes >= 660) { // 11:00 = 660 minutes
+    // Check if early close (≤17:00) or late close (>17:00)
+    const isEarlyClose = endMinutes <= 1020; // 17:00 = 1020 minutes
+    
+    if (isEarlyClose) {
+      console.log(`   ⏰ ${assignment.staff || 'Staff'}: Late starter (${startTime}), early close (${endTime}) → 13:00 break`);
+      return breakSlots[2]; // 13:00 (NOT 14:00 for 4pm/5pm closes!)
+    } else {
+      console.log(`   ⏰ ${assignment.staff || 'Staff'}: Late starter (${startTime}), late close (${endTime}) → 14:00 break`);
+      return breakSlots[3]; // 14:00 (OK for 6pm/7pm closes)
+    }
   }
   
   // Default: Early break
@@ -1410,46 +1418,42 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
       
       // ✅ SMART STAGGERING: Category-aware + slot capacity
       const category = primaryAssignment.category;
-
-      // Shift-start helpers for cascade caps
-      const shiftStartMin = timeToMinutes(primaryAssignment.startTime || '09:00');
-      const isEarlyStarter = shiftStartMin < 540;   // before 09:00
-      const isLateStarter  = shiftStartMin >= 660;  // 11:00+
-      const isMidStarter   = !isEarlyStarter && !isLateStarter; // 09:00–10:45
-
-      // ✅ AZTECA OVERRIDE: Force 11:00 for 08:30 starters regardless of slot capacity
-      if (primaryAssignment.unit === 'Azteca Entrance' && isEarlyStarter) {
-        targetSlot = breakSlots[0];
-        console.log(`   🏛️  ${staffName}: Azteca Entrance → forced 11:00 break`);
-      } else {
-
-      // STEP 1: Check category-specific limits
+      
+      // STEP 1: Check category-specific limits to prevent clustering
       const sameCategoryInSlot = targetSlot.assigned.filter(assignedStaff => {
         const assignmentData = assignmentsToProcess.find(x => x.staff === assignedStaff);
         return assignmentData && assignmentData.category === category;
       }).length;
       
-      const categoryLimits = { 'Car Parks': 1, 'GHI': 2, 'Admissions': 2, 'Retail': 2 };
+      // Define max per category per slot
+      const categoryLimits = {
+        'Car Parks': 1,      // Car Parks work alone → stagger all breaks
+        'GHI': 2,            // GHI can have 2 people break together
+        'Admissions': 2,     // Admissions can have 2 at same slot
+        'Retail': 2          // Retail can have 2 at same slot
+      };
+      
       const maxForCategory = categoryLimits[category] || 2;
       
+      // If category limit reached, find next available slot for this category
       if (sameCategoryInSlot >= maxForCategory) {
         const currentSlotIndex = breakSlots.findIndex(s => s.start === targetSlot.start);
-        const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020;
+        const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020; // ≤17:00
         
         for (let i = currentSlotIndex + 1; i < breakSlots.length; i++) {
           const nextSlot = breakSlots[i];
-          const nextSlotMin = timeToMinutes(nextSlot.start);
-
-          // ✅ HARD CASCADE CAPS
-          if (isEarlyStarter && nextSlotMin > 780) { targetSlot = breakSlots[2]; console.log(`   🌅 ${staffName}: Early starter cascade capped at 13:00`); break; }
-          if (isMidStarter && nextSlotMin > 840) { targetSlot = breakSlots[3]; console.log(`   🕐 ${staffName}: Mid-starter cascade capped at 14:00`); break; }
-          if (isEarlyClose && nextSlot.start === '15:00') continue;
+          
+          // CRITICAL: Skip 15:00 breaks for early closes (4pm/5pm)
+          if (isEarlyClose && nextSlot.start === '15:00') {
+            continue; // Skip to next slot
+          }
           
           const sameCategoryInNext = nextSlot.assigned.filter(assignedStaff => {
             const assignmentData = assignmentsToProcess.find(x => x.staff === assignedStaff);
             return assignmentData && assignmentData.category === category;
           }).length;
           
+          // Move if next slot has room for this category AND isn't completely full
           if (sameCategoryInNext < maxForCategory && nextSlot.assigned.length < nextSlot.capacity) {
             console.log(`   🔄 ${staffName}: ${sameCategoryInSlot} ${category} already at ${targetSlot.start}, moving to ${nextSlot.start}`);
             targetSlot = nextSlot;
@@ -1458,16 +1462,17 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
         }
       }
       
-      // STEP 2: Check overall slot capacity
+      // STEP 2: Check overall slot capacity (if slot is completely full)
       if (targetSlot.assigned.length >= targetSlot.capacity) {
         const currentSlotIndex = breakSlots.findIndex(s => s.start === targetSlot.start);
-        const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020;
+        const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020; // ≤17:00
         
         for (let i = currentSlotIndex + 1; i < breakSlots.length; i++) {
-          const nextSlotMin = timeToMinutes(breakSlots[i].start);
-          if (isEarlyStarter && nextSlotMin > 780) { targetSlot = breakSlots[2]; break; }
-          if (isMidStarter && nextSlotMin > 840) { targetSlot = breakSlots[3]; break; }
-          if (isEarlyClose && breakSlots[i].start === '15:00') continue;
+          // CRITICAL: Skip 15:00 breaks for early closes (4pm/5pm)
+          if (isEarlyClose && breakSlots[i].start === '15:00') {
+            continue; // Skip to next slot
+          }
+          
           if (breakSlots[i].assigned.length < breakSlots[i].capacity) {
             console.log(`   🔄 ${staffName}: Slot ${targetSlot.start} full (${targetSlot.assigned.length}/${targetSlot.capacity}), moving to ${breakSlots[i].start}`);
             targetSlot = breakSlots[i];
@@ -1475,14 +1480,6 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
           }
         }
       }
-
-      // ✅ ABSOLUTE FINAL CAP — safety net
-      const finalSlotMin = timeToMinutes(targetSlot.start);
-      if (isEarlyStarter && finalSlotMin > 780) { targetSlot = breakSlots[2]; console.log(`   🔒 ${staffName}: Hard cap → 13:00`); }
-      else if (isMidStarter && finalSlotMin > 840) { targetSlot = breakSlots[3]; console.log(`   🔒 ${staffName}: Hard cap → 14:00`); }
-      else if (isLateStarter && finalSlotMin > 900) { targetSlot = breakSlots[4]; console.log(`   🔒 ${staffName}: Hard cap → 15:00`); }
-
-      } // end Azteca override else
       
       // Assign to target slot if space available
       if (targetSlot && targetSlot.assigned.length < targetSlot.capacity) {
@@ -2510,7 +2507,7 @@ app.post('/api/auto-assign', upload.fields([
     function reassignEntranceStaffAfternoon(assignments, staffingRequirements, skillsData, dayCode) {
       console.log('   Analyzing entrance staffing levels post-break...');
       
-      const ENTRANCE_UNITS = ['Lodge Entrance', 'Explorer Entrance', 'Azteca Entrance', 'Schools Entrance'];
+      const ENTRANCE_UNITS = ['Lodge Entrance', 'Explorer Entrance', 'Schools Entrance'];
       const AFTERNOON_START = '13:45'; // After lunch breaks (1:45 PM)
       
       // Check which entrances are open
@@ -3224,6 +3221,83 @@ const PRIORITY_UNITS = {
 };
 
 // ============================================================================
+// PRE-STEP 1: Azteca Entrance (08:30–10:00) → Lodge (10:00–11:00) → Break → Free
+// Azteca closes at 10:00. Assign exactly 2 early 08:30 starters:
+//   08:30–10:00  Azteca Entrance
+//   10:00–11:00  Lodge Entrance (support)
+//   11:00        Break (forced by Azteca override in break scheduler)
+//   After break  Routed via afternoon reassignment wherever needed
+// ============================================================================
+const aztecaReq = staffingRequirements.find(r => r.unitName === 'Azteca Entrance');
+const otherEntrancesOpen = staffingRequirements.some(r =>
+  r.unitName !== 'Azteca Entrance' && r.unitName.includes('Entrance')
+);
+
+if (aztecaReq && otherEntrancesOpen) {
+  const AZTECA_LEAVE_TIME = '10:00';
+  const AZTECA_LODGE_TIME = '11:00'; // support Lodge 10:00–11:00 then break
+  const AZTECA_STAFF_COUNT = 2;
+
+  const aztecaCandidates = [
+    ...staffByType.regularHostsFullShift,
+    ...staffByType.seniorHostsFullShift
+  ].filter(s => !assignedStaff.has(s.name) && s.startTime === '08:30');
+
+  // After Azteca, go to Lodge for an hour, then break at 11:00, then free for afternoon
+  const postAztecaUnit = staffingRequirements.some(r => r.unitName === 'Lodge Entrance')
+    ? 'Lodge Entrance' : 'Adventures Point Gift Shop';
+
+  console.log(`\n   🚗 Azteca pre-pass: assigning 2 early starters (08:30–${AZTECA_LEAVE_TIME}), then ${postAztecaUnit} (${AZTECA_LEAVE_TIME}–${AZTECA_LODGE_TIME}), break at 11:00`);
+
+  let aztecaFilled = 0;
+  for (const host of aztecaCandidates) {
+    if (aztecaFilled >= AZTECA_STAFF_COUNT) break;
+
+    // 08:30 → 10:00 at Azteca
+    assignments.push({
+      unit: position: aztecaReq.position,
+      positionType: 'Host (Azteca Morning)',
+      staff: host.name, zone, dayCode,
+      trainingMatch: 'Azteca Entrance-Host',
+      startTime: host.startTime, endTime: AZTECA_LEAVE_TIME,
+      breakMinutes: 0, isBreak: false, category: 'Admissions'
+    });
+
+    // 10:00 → 11:00 at Lodge (support hour before break)
+    assignments.push({
+      unit: postAztecaUnit, position: 'Admissions Host',
+      positionType: 'Host (Post-Azteca)',
+      staff: host.name, zone, dayCode,
+      trainingMatch: `${postAztecaUnit}-Host`,
+      startTime: AZTECA_LEAVE_TIME, endTime: AZTECA_LODGE_TIME,
+      breakMinutes: 0, isBreak: false, category: getCategoryFromUnit(postAztecaUnit)
+    });
+
+    // 11:00 → end of shift: free for afternoon reassignment (Step 6 will route them)
+    assignments.push({
+      unit: postAztecaUnit, position: 'Admissions Host',
+      positionType: 'Host (Post-Break)',
+      staff: host.name, zone, dayCode,
+      trainingMatch: `${postAztecaUnit}-Host`,
+      startTime: AZTECA_LODGE_TIME, endTime: host.endTime,
+      breakMinutes: host.scheduledBreakMinutes || 0,
+      isBreak: false, category: getCategoryFromUnit(postAztecaUnit)
+    });
+
+    assignedStaff.add(host.name);
+    const aztecaKey = `Azteca Entrance-${aztecaReq.position}`;
+    filledPositions.set(aztecaKey, (filledPositions.get(aztecaKey) || 0) + 1);
+    assigned++;
+    aztecaFilled++;
+    console.log(`   🚗 ${host.name} → Azteca (08:30–${AZTECA_LEAVE_TIME}) → ${postAztecaUnit} (${AZTECA_LEAVE_TIME}–${AZTECA_LODGE_TIME}) → break 11:00 → free`);
+  }
+
+  if (aztecaFilled < AZTECA_STAFF_COUNT) {
+    console.log(`   ⚠️  Azteca pre-pass: only found ${aztecaFilled}/${AZTECA_STAFF_COUNT} 08:30 starters`);
+  }
+}
+
+// ============================================================================
 // STEP 1: Assign Senior Hosts to Priority Units (full shift, 1 per unit)
 // ============================================================================
 console.log(`\n   📍 STEP 1: Assigning Senior Hosts to priority units...`);
@@ -3280,57 +3354,6 @@ for (const unitName of priorityUnitsForSeniorHost) {
     filledPositions.set(unitPositionKey, (filledPositions.get(unitPositionKey) || 0) + 1);
     console.log(`   ✅ ${availableSenior.name} → ${unitName} (Senior Host, ${availableSenior.startTime}-${availableSenior.endTime})`);
     assigned++;
-  }
-}
-
-
-// ============================================================================
-// B&J PRE-PASS: Guarantee 2 trained staff at Ben & Jerry's from 12:00
-// Staff who start before 12:00 work Sweet Shop in morning, B&J from 12:00.
-// This reserves trained staff for B&J BEFORE STEP 2 assigns them elsewhere.
-// ============================================================================
-const BJ_OPEN_PRE = '12:00';
-const BJ_MIN_GUARANTEE = 2;
-const bjBaseReq = staffingRequirements.find(r => r.unitName === "Ben & Jerry's");
-if (bjBaseReq) {
-  const bjTrainedAvailable = staffByType.regularHostsFullShift.filter(s =>
-    !assignedStaff.has(s.name) && hasSkillForUnit(s.name, "Ben & Jerry's", skillsData)
-  );
-  console.log(`   🍦 B&J pre-pass: ${bjTrainedAvailable.length} trained staff available, guaranteeing ${BJ_MIN_GUARANTEE} from ${BJ_OPEN_PRE}`);
-  let bjPreFilled = 0;
-  for (const host of bjTrainedAvailable) {
-    if (bjPreFilled >= BJ_MIN_GUARANTEE) break;
-    const startsBeforeBJ = timeToMinutes(host.startTime) < timeToMinutes(BJ_OPEN_PRE);
-    if (startsBeforeBJ) {
-      assignments.push({
-        unit: 'Sweet Shop', position: 'Retail Host', positionType: 'Host (Morning Cover)',
-        staff: host.name, zone, dayCode, trainingMatch: 'Sweet Shop-Host',
-        startTime: host.startTime, endTime: BJ_OPEN_PRE,
-        breakMinutes: 0, isBreak: false, category: 'Retail'
-      });
-      assignments.push({
-        unit: "Ben & Jerry's", position: 'Retail Host', positionType: 'Host (B&J from open)',
-        staff: host.name, zone, dayCode, trainingMatch: "Ben & Jerry's-Host",
-        startTime: BJ_OPEN_PRE, endTime: host.endTime,
-        breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail'
-      });
-      console.log(`   🍦 [PRE] ${host.name} → Sweet Shop (${host.startTime}-${BJ_OPEN_PRE}) then Ben & Jerry's (${BJ_OPEN_PRE}-${host.endTime})`);
-    } else {
-      assignments.push({
-        unit: "Ben & Jerry's", position: 'Retail Host', positionType: 'Host (B&J from open)',
-        staff: host.name, zone, dayCode, trainingMatch: "Ben & Jerry's-Host",
-        startTime: host.startTime, endTime: host.endTime,
-        breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail'
-      });
-      console.log(`   🍦 [PRE] ${host.name} → Ben & Jerry's (${host.startTime}-${host.endTime})`);
-    }
-    assignedStaff.add(host.name);
-    // ✅ Do NOT count toward Sweet Shop fill — leaves at 12:00
-    assigned++;
-    bjPreFilled++;
-  }
-  if (bjPreFilled < BJ_MIN_GUARANTEE) {
-    console.log(`   ⚠️  B&J pre-pass: only found ${bjPreFilled}/${BJ_MIN_GUARANTEE} trained staff`);
   }
 }
 
@@ -3440,69 +3463,6 @@ for (let i = 0; i < shortShiftNeeded; i++) {
 // ============================================================================
 console.log(`\n   📍 STEP 4: Assigning remaining staff...`);
 
-// ✅ PRE-STEP 4: Explorer Supplies minimum 2 staff enforcement
-const suppliesReq = staffingRequirements.find(r => r.unitName === 'Explorer Supplies');
-if (suppliesReq) {
-  const suppliesKey = `${suppliesReq.unitName}-${suppliesReq.position}`;
-  const suppliesFilled = assignments.filter(a => a.unit === 'Explorer Supplies' && !a.isBreak && a.staff !== 'UNFILLED').length;
-  const suppliesMinimum = 2;
-  if (suppliesFilled < suppliesMinimum) {
-    const needed = suppliesMinimum - suppliesFilled;
-    console.log(`   📦 Explorer Supplies: ${suppliesFilled}/${suppliesMinimum} — adding ${needed} more`);
-    const suppliesCandidates = staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name));
-    let suppliesAdded = 0;
-    for (const host of suppliesCandidates) {
-      if (suppliesAdded >= needed) break;
-      assignments.push({
-        unit: 'Explorer Supplies', position: suppliesReq.position,
-        positionType: 'Host (Supplies Min)',
-        staff: host.name, zone, dayCode,
-        trainingMatch: 'Explorer Supplies-Host',
-        startTime: host.startTime, endTime: host.endTime,
-        breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail'
-      });
-      assignedStaff.add(host.name);
-      filledPositions.set(suppliesKey, (filledPositions.get(suppliesKey) || 0) + 1);
-      console.log(`   📦 ${host.name} → Explorer Supplies (min 2 enforcement)`);
-      assigned++;
-      suppliesAdded++;
-    }
-  }
-}
-
-// ✅ PRE-STEP 4: APGS minimum 3 staff enforcement
-const apgsReq = staffingRequirements.find(r => r.unitName === 'Adventures Point Gift Shop' && r.position.includes('Host') && !r.position.includes('Senior'));
-if (apgsReq) {
-  const apgsKey = `${apgsReq.unitName}-${apgsReq.position}`;
-  const apgsFilled = assignments.filter(a => a.unit === 'Adventures Point Gift Shop' && !a.isBreak && a.staff !== 'UNFILLED').length;
-  const apgsMinimum = 3;
-  if (apgsFilled < apgsMinimum) {
-    const needed = apgsMinimum - apgsFilled;
-    console.log(`   🛍️  APGS: ${apgsFilled}/${apgsMinimum} — adding ${needed} more`);
-    const apgsCandidates = staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name));
-    let apgsAdded = 0;
-    for (const host of apgsCandidates) {
-      if (apgsAdded >= needed) break;
-      assignments.push({
-        unit: 'Adventures Point Gift Shop', position: apgsReq.position,
-        positionType: 'Host (APGS Min)',
-        staff: host.name, zone, dayCode,
-        trainingMatch: 'Adventures Point Gift Shop-Host',
-        startTime: host.startTime, endTime: host.endTime,
-        breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail'
-      });
-      assignedStaff.add(host.name);
-      filledPositions.set(apgsKey, (filledPositions.get(apgsKey) || 0) + 1);
-      console.log(`   🛍️  ${host.name} → Adventures Point Gift Shop (min 3 enforcement)`);
-      assigned++;
-      apgsAdded++;
-    }
-  }
-}
-
-// Units requiring specific training — untrained staff must never be assigned here
-const STEP4_SKILL_REQUIRED = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sweet Shop', 'Sealife']);
-
 const allRemainingStaff = [
   ...staffByType.seniorHostsFullShift.filter(s => !assignedStaff.has(s.name)),
   ...staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name)),
@@ -3516,19 +3476,18 @@ for (const staff of allRemainingStaff) {
   const unfilledReq = staffingRequirements.find(req => {
     const isHost = req.position.includes('Host');
     const category = getCategoryFromUnit(req.unitName);
+    // ✅ FIX: Check category instead of hardcoded unit names (catches all Retail/Admissions units)
     const isRetailAdmissions = category === 'Retail' || category === 'Admissions';
     const notBreakCover = !req.position.includes('Break Cover');
+    // ✅ FIX: Use unit+position key to match how Steps 1-3 track filled positions
     const unitPositionKey = `${req.unitName}-${req.position}`;
     const needsStaff = (filledPositions.get(unitPositionKey) || 0) < req.staffNeeded;
     
+    // Check Senior Host requirements
     const requiresSeniorHost = req.position.includes('Senior Host');
     const isSeniorHost = staffByType.seniorHostsFullShift.includes(staff);
+    
     if (requiresSeniorHost && !isSeniorHost) return false;
-
-    // ✅ Skill gate: B&J, B&J Kiosk, Sweet Shop, Sealife require trained staff
-    if (STEP4_SKILL_REQUIRED.has(req.unitName)) {
-      if (!hasSkillForUnit(staff.name, req.unitName, skillsData)) return false;
-    }
     
     return isHost && isRetailAdmissions && notBreakCover && needsStaff;
   });
@@ -3588,7 +3547,7 @@ if (hasExplorer && hasSchools) {
     'Explorer Entrance': 4,          // Priority entrance (baseline + 4 overflow = 5-6 total)
     'Lodge Entrance': 3,             // Secondary entrance (baseline + 3 overflow = 4-5 total)
     'Schools Entrance': 2,           // Additional Schools overflow (baseline varies + 2 = 5-6 total)
-    'Azteca Entrance': 1,
+    // Azteca excluded — closes at 10:00, staffed by pre-pass only
     'Adventures Point Gift Shop': 2,
     'Sweet Shop': 2,
     'Sealife': 1,
@@ -3602,7 +3561,7 @@ if (hasExplorer && hasSchools) {
   UNIT_OVERFLOW_TARGETS = {
     'Explorer Entrance': 4,          // Priority entrance (baseline 2-3 + 4 overflow = 5-6 total)
     'Lodge Entrance': 2,             // Secondary (baseline 2 + 2 overflow = 3-4 total)
-    'Azteca Entrance': 1,
+    // Azteca excluded — closes at 10:00, staffed by pre-pass only
     'Adventures Point Gift Shop': 2,
     'Sweet Shop': 2,
     'Sealife': 1,
@@ -3616,7 +3575,7 @@ if (hasExplorer && hasSchools) {
   UNIT_OVERFLOW_TARGETS = {
     'Lodge Entrance': 4,             // Priority entrance (baseline 2 + 4 overflow = 5-6 total)
     'Schools Entrance': 2,           // Additional Schools overflow (baseline 4 + 2 = 5-6 total)
-    'Azteca Entrance': 1,
+    // Azteca excluded — closes at 10:00, staffed by pre-pass only
     'Adventures Point Gift Shop': 2,
     'Sweet Shop': 2,
     'Sealife': 1,
@@ -3629,7 +3588,7 @@ if (hasExplorer && hasSchools) {
   // Lodge only (Day Code A, K-N - quiet days)
   UNIT_OVERFLOW_TARGETS = {
     'Lodge Entrance': 1,             // Quiet day - minimal overflow (baseline 2 + 1 = 2-3 total)
-    'Azteca Entrance': 1,
+    // Azteca excluded — closes at 10:00, staffed by pre-pass only
     'Adventures Point Gift Shop': 2,
     'Sweet Shop': 2,
     'Sealife': 1,
@@ -3651,16 +3610,16 @@ const isBusyDay = BUSY_DAY_CODES.includes(dayCode);
 let IDEAL_PRIORITY_ORDER;
 if (hasExplorer && hasSchools) {
   // Both Explorer and Schools (e.g., Day Code G)
-  IDEAL_PRIORITY_ORDER = ['Explorer Entrance', 'Lodge Entrance', 'Schools Entrance', 'Azteca Entrance', 'Adventures Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
+  IDEAL_PRIORITY_ORDER = ['Explorer Entrance', 'Lodge Entrance', 'Schools Entrance', 'Adventures Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
 } else if (hasExplorer) {
   // Explorer open, no Schools (Day Codes E, F, H, I)
-  IDEAL_PRIORITY_ORDER = ['Explorer Entrance', 'Lodge Entrance', 'Azteca Entrance', 'Adventures Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
+  IDEAL_PRIORITY_ORDER = ['Explorer Entrance', 'Lodge Entrance', 'Adventures Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
 } else if (hasSchools) {
   // Schools open, no Explorer (Day Codes B, C, D)
-  IDEAL_PRIORITY_ORDER = ['Lodge Entrance', 'Schools Entrance', 'Azteca Entrance', 'Adventures Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
+  IDEAL_PRIORITY_ORDER = ['Lodge Entrance', 'Schools Entrance', 'Adventures Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
 } else {
   // Lodge only (Day Code A, K-N - quiet days)
-  IDEAL_PRIORITY_ORDER = ['Adventures Point Gift Shop', 'Sweet Shop', 'Lodge Entrance', 'Sealife', 'Azteca Entrance', 'Ben & Jerry\'s', 'Lorikeets'];
+  IDEAL_PRIORITY_ORDER = ['Adventures Point Gift Shop', 'Sweet Shop', 'Lodge Entrance', 'Sealife', 'Ben & Jerry\'s', 'Lorikeets'];
 }
 
 // ✅ FIX: Filter to only units that actually have requirements for this day code
