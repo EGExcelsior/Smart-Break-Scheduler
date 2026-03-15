@@ -885,39 +885,43 @@ function getPreferredBreakSlot(assignment, breakSlots, allAssignments) {
   const startMinutes = timeToMinutes(startTime);
   const endMinutes = timeToMinutes(endTime);
   const isSeniorHost = assignment.position && assignment.position.includes('Senior Host');
-  
-  // Priority 1: SHORT SHIFTS (end ≤14:30) → 11:00 ALWAYS
-  if (endMinutes <= 870) { // 14:30 = 870 minutes
-    console.log(`   🕐 ${assignment.staff || 'Staff'}: Short shift (ends ${endTime}) → 11:00 break`);
+
+  // ✅ SAFETY: find the latest slot that still ends at least 30 mins before shift end
+  // This prevents breaks being assigned so late the person can't finish work
+  const latestSafeSlotStart = endMinutes - 75; // break (45min) + 30min buffer
+
+  // Priority 1: SHORT SHIFTS (end ≤15:00) → 11:00 ALWAYS
+  // Catches Sienna (13:45), Callum (14:45), Freddie (14:45), Will (13:45)
+  if (endMinutes <= 900) { // 15:00 = 900 minutes
+    console.log(`   🕐 ${assignment.staff || 'Staff'}: Early closer (ends ${endTime}) → 11:00 break`);
     return breakSlots[0]; // 11:00
   }
   
   // Priority 2: SENIOR HOSTS → 12:00+ (NEVER 11:00)
   if (isSeniorHost) {
     console.log(`   👔 ${assignment.staff || 'Staff'}: Senior Host → 12:00+ break`);
-    return breakSlots[1]; // 12:00 (will cascade to 13:00/14:00 if full)
+    return breakSlots[1]; // 12:00
   }
   
   // Priority 3: EARLY STARTERS (before 09:00) → 11:00
-  if (startMinutes < 540) { // 09:00 = 540 minutes
+  if (startMinutes < 540) {
     console.log(`   🌅 ${assignment.staff || 'Staff'}: Early starter (${startTime}) → 11:00 break`);
     return breakSlots[0]; // 11:00
   }
   
-  // Priority 4: MID-SHIFT STARTERS (09:00-10:45) → 12:00 (NOT 11:00!)
-  if (startMinutes >= 540 && startMinutes < 645) { // 09:00-10:45
+  // Priority 4: MID-SHIFT STARTERS (09:00-10:45) → 12:00
+  if (startMinutes >= 540 && startMinutes < 645) {
     console.log(`   🕐 ${assignment.staff || 'Staff'}: Mid-shift starter (${startTime}) → 12:00 break`);
     return breakSlots[1]; // 12:00
   }
   
-  // Priority 5: LATE STARTERS (11:00+) → always 14:00, cascade to 15:00 only
+  // Priority 5: LATE STARTERS (11:00+) → 14:00, cascade to 15:00
   if (startMinutes >= 660) {
     console.log(`   ⏰ ${assignment.staff || 'Staff'}: Late starter (${startTime}) → 14:00 break`);
     return breakSlots[3]; // 14:00
   }
   
-  // Default: Early break
-  return breakSlots[0]; // 11:00
+  return breakSlots[0]; // Default: 11:00
 }
 function getAllParkUnits() {
   console.log('\n🌐 Loading park-wide unit status...');
@@ -1490,12 +1494,15 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
         }
       }
 
-      // ✅ Safety: break must end before shift ends
-      const breakEndCheck = timeToMinutes(targetSlot.start) + (actualBreakMinutes || 30);
-      const shiftEndCheck = timeToMinutes(primaryAssignment.endTime || '17:45');
-      if (breakEndCheck > shiftEndCheck - 15) {
-        const safeSlot = breakSlots.find(s => timeToMinutes(s.start) + (actualBreakMinutes || 30) <= shiftEndCheck - 15);
-        if (safeSlot) { console.log(`   ⏰ ${staffName}: Break would overrun, moving to ${safeSlot.start}`); targetSlot = safeSlot; }
+      // ✅ Safety: break must end at least 30 mins before shift ends
+      // Use actual shift end (last segment) not just primary assignment end
+      const breakEndCheck = timeToMinutes(targetSlot.start) + (actualBreakMinutes || 45);
+      const actualShiftEnd = timeToMinutes(shiftEnd); // shiftEnd = sorted[last].endTime
+      if (breakEndCheck > actualShiftEnd - 30) {
+        // Find earliest slot where break fits safely
+        const safeSlot = breakSlots.find(s => timeToMinutes(s.start) + (actualBreakMinutes || 45) <= actualShiftEnd - 30);
+        if (safeSlot) { console.log(`   ⏰ ${staffName}: Break would overrun shift end (${shiftEnd}), moving to ${safeSlot.start}`); targetSlot = safeSlot; }
+        else { console.log(`   ⚠️  ${staffName}: No safe break slot found before shift end (${shiftEnd})`); }
       }
       
       // Assign to target slot if space available
