@@ -1411,36 +1411,27 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
       // ✅ SMART STAGGERING: Category-aware + slot capacity
       const category = primaryAssignment.category;
 
-      // Shift-start helpers — used in cascade caps below
+      // Shift-start helpers for cascade caps
       const shiftStartMin = timeToMinutes(primaryAssignment.startTime || '09:00');
-      const isEarlyStarter = shiftStartMin < 540;   // before 09:00 (e.g. 08:30)
+      const isEarlyStarter = shiftStartMin < 540;   // before 09:00
       const isLateStarter  = shiftStartMin >= 660;  // 11:00+
       const isMidStarter   = !isEarlyStarter && !isLateStarter; // 09:00–10:45
 
-      // ✅ AZTECA OVERRIDE: 08:30 starters at Azteca ALWAYS break at 11:00
-      // Force regardless of slot capacity — they've been there since 08:30
+      // ✅ AZTECA OVERRIDE: Force 11:00 for 08:30 starters regardless of slot capacity
       if (primaryAssignment.unit === 'Azteca Entrance' && isEarlyStarter) {
-        targetSlot = breakSlots[0]; // Always 11:00
+        targetSlot = breakSlots[0];
         console.log(`   🏛️  ${staffName}: Azteca Entrance → forced 11:00 break`);
       } else {
 
-      // STEP 1: Check category-specific limits to prevent clustering
+      // STEP 1: Check category-specific limits
       const sameCategoryInSlot = targetSlot.assigned.filter(assignedStaff => {
         const assignmentData = assignmentsToProcess.find(x => x.staff === assignedStaff);
         return assignmentData && assignmentData.category === category;
       }).length;
       
-      // Define max per category per slot
-      const categoryLimits = {
-        'Car Parks': 1,
-        'GHI': 2,
-        'Admissions': 2,
-        'Retail': 2
-      };
-      
+      const categoryLimits = { 'Car Parks': 1, 'GHI': 2, 'Admissions': 2, 'Retail': 2 };
       const maxForCategory = categoryLimits[category] || 2;
       
-      // If category limit reached, find next available slot
       if (sameCategoryInSlot >= maxForCategory) {
         const currentSlotIndex = breakSlots.findIndex(s => s.start === targetSlot.start);
         const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020;
@@ -1449,15 +1440,9 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
           const nextSlot = breakSlots[i];
           const nextSlotMin = timeToMinutes(nextSlot.start);
 
-          // ✅ HARD CASCADE CAPS — never push past these limits
-          if (isEarlyStarter && nextSlotMin > 780) {
-            console.log(`   🌅 ${staffName}: Early starter cascade capped at 13:00`);
-            targetSlot = breakSlots[2]; break; // 13:00 max
-          }
-          if (isMidStarter && nextSlotMin > 840) {
-            console.log(`   🕐 ${staffName}: Mid-starter cascade capped at 14:00`);
-            targetSlot = breakSlots[3]; break; // 14:00 max
-          }
+          // ✅ HARD CASCADE CAPS
+          if (isEarlyStarter && nextSlotMin > 780) { targetSlot = breakSlots[2]; console.log(`   🌅 ${staffName}: Early starter cascade capped at 13:00`); break; }
+          if (isMidStarter && nextSlotMin > 840) { targetSlot = breakSlots[3]; console.log(`   🕐 ${staffName}: Mid-starter cascade capped at 14:00`); break; }
           if (isEarlyClose && nextSlot.start === '15:00') continue;
           
           const sameCategoryInNext = nextSlot.assigned.filter(assignedStaff => {
@@ -1480,16 +1465,9 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
         
         for (let i = currentSlotIndex + 1; i < breakSlots.length; i++) {
           const nextSlotMin = timeToMinutes(breakSlots[i].start);
-
-          // ✅ HARD CASCADE CAPS
-          if (isEarlyStarter && nextSlotMin > 780) {
-            targetSlot = breakSlots[2]; break; // 13:00 max
-          }
-          if (isMidStarter && nextSlotMin > 840) {
-            targetSlot = breakSlots[3]; break; // 14:00 max
-          }
+          if (isEarlyStarter && nextSlotMin > 780) { targetSlot = breakSlots[2]; break; }
+          if (isMidStarter && nextSlotMin > 840) { targetSlot = breakSlots[3]; break; }
           if (isEarlyClose && breakSlots[i].start === '15:00') continue;
-          
           if (breakSlots[i].assigned.length < breakSlots[i].capacity) {
             console.log(`   🔄 ${staffName}: Slot ${targetSlot.start} full (${targetSlot.assigned.length}/${targetSlot.capacity}), moving to ${breakSlots[i].start}`);
             targetSlot = breakSlots[i];
@@ -1498,18 +1476,11 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
         }
       }
 
-      // ✅ ABSOLUTE FINAL CAP — safety net regardless of all logic above
+      // ✅ ABSOLUTE FINAL CAP — safety net
       const finalSlotMin = timeToMinutes(targetSlot.start);
-      if (isEarlyStarter && finalSlotMin > 780) {
-        targetSlot = breakSlots[2];
-        console.log(`   🔒 ${staffName}: Hard cap → 13:00`);
-      } else if (isMidStarter && finalSlotMin > 840) {
-        targetSlot = breakSlots[3];
-        console.log(`   🔒 ${staffName}: Hard cap → 14:00`);
-      } else if (isLateStarter && finalSlotMin > 900) {
-        targetSlot = breakSlots[4];
-        console.log(`   🔒 ${staffName}: Hard cap → 15:00`);
-      }
+      if (isEarlyStarter && finalSlotMin > 780) { targetSlot = breakSlots[2]; console.log(`   🔒 ${staffName}: Hard cap → 13:00`); }
+      else if (isMidStarter && finalSlotMin > 840) { targetSlot = breakSlots[3]; console.log(`   🔒 ${staffName}: Hard cap → 14:00`); }
+      else if (isLateStarter && finalSlotMin > 900) { targetSlot = breakSlots[4]; console.log(`   🔒 ${staffName}: Hard cap → 15:00`); }
 
       } // end Azteca override else
       
@@ -3312,14 +3283,12 @@ for (const unitName of priorityUnitsForSeniorHost) {
   }
 }
 
-// ============================================================================
-// STEP 2: Assign Full-Shift Hosts to All-Day Coverage Units
-// ============================================================================
-console.log(`\n   📍 STEP 2: Assigning full-shift Hosts for all-day coverage...`);
 
-// 🍦 B&J PRE-PASS: Guarantee minimum 2 trained staff at B&J from 12:00
-// Staff who start before 12:00 work Sweet Shop in the morning, then B&J from 12:00
-// This runs BEFORE the main STEP 2 loop so trained staff are reserved for B&J
+// ============================================================================
+// B&J PRE-PASS: Guarantee 2 trained staff at Ben & Jerry's from 12:00
+// Staff who start before 12:00 work Sweet Shop in morning, B&J from 12:00.
+// This reserves trained staff for B&J BEFORE STEP 2 assigns them elsewhere.
+// ============================================================================
 const BJ_OPEN_PRE = '12:00';
 const BJ_MIN_GUARANTEE = 2;
 const bjBaseReq = staffingRequirements.find(r => r.unitName === "Ben & Jerry's");
@@ -3328,14 +3297,11 @@ if (bjBaseReq) {
     !assignedStaff.has(s.name) && hasSkillForUnit(s.name, "Ben & Jerry's", skillsData)
   );
   console.log(`   🍦 B&J pre-pass: ${bjTrainedAvailable.length} trained staff available, guaranteeing ${BJ_MIN_GUARANTEE} from ${BJ_OPEN_PRE}`);
-
   let bjPreFilled = 0;
   for (const host of bjTrainedAvailable) {
     if (bjPreFilled >= BJ_MIN_GUARANTEE) break;
     const startsBeforeBJ = timeToMinutes(host.startTime) < timeToMinutes(BJ_OPEN_PRE);
-
     if (startsBeforeBJ) {
-      // Morning at Sweet Shop, then B&J from 12:00
       assignments.push({
         unit: 'Sweet Shop', position: 'Retail Host', positionType: 'Host (Morning Cover)',
         staff: host.name, zone, dayCode, trainingMatch: 'Sweet Shop-Host',
@@ -3343,26 +3309,23 @@ if (bjBaseReq) {
         breakMinutes: 0, isBreak: false, category: 'Retail'
       });
       assignments.push({
-        unit: "Ben & Jerry's", position: 'Retail Host', positionType: "Host (B&J from open)",
+        unit: "Ben & Jerry's", position: 'Retail Host', positionType: 'Host (B&J from open)',
         staff: host.name, zone, dayCode, trainingMatch: "Ben & Jerry's-Host",
         startTime: BJ_OPEN_PRE, endTime: host.endTime,
         breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail'
       });
       console.log(`   🍦 [PRE] ${host.name} → Sweet Shop (${host.startTime}-${BJ_OPEN_PRE}) then Ben & Jerry's (${BJ_OPEN_PRE}-${host.endTime})`);
     } else {
-      // Starts at or after 12:00 — straight to B&J
       assignments.push({
-        unit: "Ben & Jerry's", position: 'Retail Host', positionType: "Host (B&J from open)",
+        unit: "Ben & Jerry's", position: 'Retail Host', positionType: 'Host (B&J from open)',
         staff: host.name, zone, dayCode, trainingMatch: "Ben & Jerry's-Host",
         startTime: host.startTime, endTime: host.endTime,
         breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail'
       });
       console.log(`   🍦 [PRE] ${host.name} → Ben & Jerry's (${host.startTime}-${host.endTime})`);
     }
-
     assignedStaff.add(host.name);
-    // ✅ Do NOT count toward Sweet Shop fill — these staff leave at 12:00
-    // STEP 2 must still assign permanent Sweet Shop hosts
+    // ✅ Do NOT count toward Sweet Shop fill — leaves at 12:00
     assigned++;
     bjPreFilled++;
   }
@@ -3370,6 +3333,11 @@ if (bjBaseReq) {
     console.log(`   ⚠️  B&J pre-pass: only found ${bjPreFilled}/${BJ_MIN_GUARANTEE} trained staff`);
   }
 }
+
+// ============================================================================
+// STEP 2: Assign Full-Shift Hosts to All-Day Coverage Units
+// ============================================================================
+console.log(`\n   📍 STEP 2: Assigning full-shift Hosts for all-day coverage...`);
 
 // ✅ BUILD DYNAMIC ASSIGNMENT LIST from unfilled retail/admissions requirements
 const fullShiftAssignments = [];
@@ -3472,6 +3440,69 @@ for (let i = 0; i < shortShiftNeeded; i++) {
 // ============================================================================
 console.log(`\n   📍 STEP 4: Assigning remaining staff...`);
 
+// ✅ PRE-STEP 4: Explorer Supplies minimum 2 staff enforcement
+const suppliesReq = staffingRequirements.find(r => r.unitName === 'Explorer Supplies');
+if (suppliesReq) {
+  const suppliesKey = `${suppliesReq.unitName}-${suppliesReq.position}`;
+  const suppliesFilled = assignments.filter(a => a.unit === 'Explorer Supplies' && !a.isBreak && a.staff !== 'UNFILLED').length;
+  const suppliesMinimum = 2;
+  if (suppliesFilled < suppliesMinimum) {
+    const needed = suppliesMinimum - suppliesFilled;
+    console.log(`   📦 Explorer Supplies: ${suppliesFilled}/${suppliesMinimum} — adding ${needed} more`);
+    const suppliesCandidates = staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name));
+    let suppliesAdded = 0;
+    for (const host of suppliesCandidates) {
+      if (suppliesAdded >= needed) break;
+      assignments.push({
+        unit: 'Explorer Supplies', position: suppliesReq.position,
+        positionType: 'Host (Supplies Min)',
+        staff: host.name, zone, dayCode,
+        trainingMatch: 'Explorer Supplies-Host',
+        startTime: host.startTime, endTime: host.endTime,
+        breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail'
+      });
+      assignedStaff.add(host.name);
+      filledPositions.set(suppliesKey, (filledPositions.get(suppliesKey) || 0) + 1);
+      console.log(`   📦 ${host.name} → Explorer Supplies (min 2 enforcement)`);
+      assigned++;
+      suppliesAdded++;
+    }
+  }
+}
+
+// ✅ PRE-STEP 4: APGS minimum 3 staff enforcement
+const apgsReq = staffingRequirements.find(r => r.unitName === 'Adventures Point Gift Shop' && r.position.includes('Host') && !r.position.includes('Senior'));
+if (apgsReq) {
+  const apgsKey = `${apgsReq.unitName}-${apgsReq.position}`;
+  const apgsFilled = assignments.filter(a => a.unit === 'Adventures Point Gift Shop' && !a.isBreak && a.staff !== 'UNFILLED').length;
+  const apgsMinimum = 3;
+  if (apgsFilled < apgsMinimum) {
+    const needed = apgsMinimum - apgsFilled;
+    console.log(`   🛍️  APGS: ${apgsFilled}/${apgsMinimum} — adding ${needed} more`);
+    const apgsCandidates = staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name));
+    let apgsAdded = 0;
+    for (const host of apgsCandidates) {
+      if (apgsAdded >= needed) break;
+      assignments.push({
+        unit: 'Adventures Point Gift Shop', position: apgsReq.position,
+        positionType: 'Host (APGS Min)',
+        staff: host.name, zone, dayCode,
+        trainingMatch: 'Adventures Point Gift Shop-Host',
+        startTime: host.startTime, endTime: host.endTime,
+        breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail'
+      });
+      assignedStaff.add(host.name);
+      filledPositions.set(apgsKey, (filledPositions.get(apgsKey) || 0) + 1);
+      console.log(`   🛍️  ${host.name} → Adventures Point Gift Shop (min 3 enforcement)`);
+      assigned++;
+      apgsAdded++;
+    }
+  }
+}
+
+// Units requiring specific training — untrained staff must never be assigned here
+const STEP4_SKILL_REQUIRED = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sweet Shop', 'Sealife']);
+
 const allRemainingStaff = [
   ...staffByType.seniorHostsFullShift.filter(s => !assignedStaff.has(s.name)),
   ...staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name)),
@@ -3485,18 +3516,19 @@ for (const staff of allRemainingStaff) {
   const unfilledReq = staffingRequirements.find(req => {
     const isHost = req.position.includes('Host');
     const category = getCategoryFromUnit(req.unitName);
-    // ✅ FIX: Check category instead of hardcoded unit names (catches all Retail/Admissions units)
     const isRetailAdmissions = category === 'Retail' || category === 'Admissions';
     const notBreakCover = !req.position.includes('Break Cover');
-    // ✅ FIX: Use unit+position key to match how Steps 1-3 track filled positions
     const unitPositionKey = `${req.unitName}-${req.position}`;
     const needsStaff = (filledPositions.get(unitPositionKey) || 0) < req.staffNeeded;
     
-    // Check Senior Host requirements
     const requiresSeniorHost = req.position.includes('Senior Host');
     const isSeniorHost = staffByType.seniorHostsFullShift.includes(staff);
-    
     if (requiresSeniorHost && !isSeniorHost) return false;
+
+    // ✅ Skill gate: B&J, B&J Kiosk, Sweet Shop, Sealife require trained staff
+    if (STEP4_SKILL_REQUIRED.has(req.unitName)) {
+      if (!hasSkillForUnit(staff.name, req.unitName, skillsData)) return false;
+    }
     
     return isHost && isRetailAdmissions && notBreakCover && needsStaff;
   });
