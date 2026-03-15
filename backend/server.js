@@ -208,16 +208,23 @@ function hasSkillForUnit(staffName, targetUnit, skillsData) {
   
   const unitSkillMap = {
     'Lodge Entrance': 'Admissions', 'Azteca Entrance': 'Admissions', 'Explorer Entrance': 'Admissions', 'Schools Entrance': 'Admissions',
-    'Adventures Point Gift Shop': 'Gift Shop', 'Sweet Shop': 'Retail', 'Sealife': 'Sea Life', 'Lorikeets': 'Retail',
-    'Car Parks - Staff Car Park': 'Car Parks', 'Car Parks - Hotel Car Park': 'Car Parks', 'Car Parks - Express': 'Car Parks'
+    'Adventures Point Gift Shop': 'Adventure Point Gift Shop', 'Sweet Shop': 'Sweet Shop', 'Sealife': 'Sea Life', 'Lorikeets': 'Retail',
+    'Car Parks - Staff Car Park': 'Car Parks', 'Car Parks - Hotel Car Park': 'Car Parks', 'Car Parks - Express': 'Car Parks',
+    'Car Parks - Split': 'Car Parks', 'Car Parks - Flamingo': 'Car Parks', 'Car Parks - Giraffe': 'Car Parks', 'Car Parks - Gorilla': 'Car Parks',
+    // ✅ B&J requires the "Ben & Jerry's" skill column — NOT Lodge Kiosk
+    "Ben & Jerry's": "Ben & Jerry's",
+    "Ben & Jerry's Kiosk": "Ben & Jerry's"
   };
   
   const requiredSkill = unitSkillMap[targetUnit];
   if (!requiredSkill) return false;
   
-  return (staff.greenUnits || []).some(skill => 
-    skill && skill.fullSkill && skill.fullSkill.toLowerCase().includes(requiredSkill.toLowerCase())
-  );
+  // ✅ Handle both plain strings ("Ben & Jerry's-HOST") and objects ({fullSkill: "..."})
+  return (staff.greenUnits || []).some(skill => {
+    if (!skill) return false;
+    const skillStr = typeof skill === 'string' ? skill : (skill.fullSkill || '');
+    return skillStr.toLowerCase().includes(requiredSkill.toLowerCase());
+  });
 }
 
 // ✅ V12: Get position name for a unit
@@ -3581,7 +3588,10 @@ for (const staff of overflowStaff) {
   if (!targetUnit) {
     // ✅ Try priority units first, respecting unit-specific caps
     for (const unitName of PRIORITY_ORDER) {
-      const unitCap = UNIT_OVERFLOW_TARGETS[unitName] || 2; // Default to 2 if not specified
+      const unitCap = UNIT_OVERFLOW_TARGETS[unitName] || 2;
+      // ✅ Skill gate: B&J and B&J Kiosk require trained staff even in overflow
+      const BJ_UNITS = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk"]);
+      if (BJ_UNITS.has(unitName) && !hasSkillForUnit(staff.name, unitName, skillsData)) continue;
       if (overflowCount[unitName] < unitCap) {
         targetUnit = unitName;
         break;
