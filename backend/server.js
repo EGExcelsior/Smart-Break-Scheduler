@@ -86,7 +86,7 @@ const UNIT_CATEGORIES = {
     'Blue Barnacle', 'Trawler Trouble', 'Barrel Bail Out', 'Seastorm', 'Ostrich Stampede'
   ],
   'Admissions': [
-    'Lodge Entrance', 'Explorer Entrance', 'Schools Entrance', 'Explorer Supplies'
+    'Lodge Entrance', 'Azteca Entrance', 'Explorer Entrance', 'Schools Entrance', 'Explorer Supplies'
   ],
   'Retail': [
     // === NEXUS RETAIL ===
@@ -1329,12 +1329,10 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
       timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
     );
     const primaryAssignment = sorted[0];
-    const breakMinutes = primaryAssignment.breakMinutes;
+    const breakMinutes = Math.max(...sorted.map(a => a.breakMinutes || 0));
     const shiftStart = sorted[0].startTime;
     const shiftEnd = sorted[sorted.length - 1].endTime;
     const workHours = calculateWorkHours(shiftStart, shiftEnd, breakMinutes || 0);
-    
-    // Count non-rides staff who qualify for breaks
     if (breakMinutes && breakMinutes > 0 && workHours >= 4.0 && !primaryAssignment.isBreakCover && primaryAssignment.category !== 'Rides') {
       nonRidesStaffCount++;
     }
@@ -1366,7 +1364,9 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
     const shiftStart = sorted[0].startTime;
     const shiftEnd = sorted[sorted.length - 1].endTime;
     const primaryAssignment = sorted[0];
-    const breakMinutes = primaryAssignment.breakMinutes;
+    // ✅ FIX: For split-shift staff (B&J pre-pass, Azteca pre-pass), sorted[0] has
+    // breakMinutes=0 (the short morning segment). Use MAX across all segments.
+    const breakMinutes = Math.max(...sorted.map(a => a.breakMinutes || 0));
     
     // Skip if no break OR break cover staff
     // ✅ EXCEPTION: Senior Hosts ALWAYS get 45-min breaks, even if breakMinutes is 0
@@ -3357,59 +3357,6 @@ for (const unitName of priorityUnitsForSeniorHost) {
   }
 }
 
-
-// ============================================================================
-// B&J PRE-PASS: Guarantee 2 trained staff at Ben & Jerry's from 12:00
-// Staff starting before 12:00 work Sweet Shop in the morning, B&J from 12:00.
-// Runs BEFORE STEP 2 so trained staff are reserved before being assigned elsewhere.
-// ============================================================================
-const BJ_OPEN_PRE = '12:00';
-const BJ_MIN_GUARANTEE = 2;
-const bjBaseReq = staffingRequirements.find(r => r.unitName === "Ben & Jerry's");
-if (bjBaseReq) {
-  const bjTrainedAvailable = staffByType.regularHostsFullShift.filter(s =>
-    !assignedStaff.has(s.name) && hasSkillForUnit(s.name, "Ben & Jerry's", skillsData)
-  );
-  console.log(`   🍦 B&J pre-pass: ${bjTrainedAvailable.length} trained staff available, guaranteeing ${BJ_MIN_GUARANTEE} from ${BJ_OPEN_PRE}`);
-  let bjPreFilled = 0;
-  for (const host of bjTrainedAvailable) {
-    if (bjPreFilled >= BJ_MIN_GUARANTEE) break;
-    const startsBeforeBJ = timeToMinutes(host.startTime) < timeToMinutes(BJ_OPEN_PRE);
-    if (startsBeforeBJ) {
-      // Morning at Sweet Shop until B&J opens
-      assignments.push({
-        unit: 'Sweet Shop', position: 'Retail Host', positionType: 'Host (Morning Cover)',
-        staff: host.name, zone, dayCode, trainingMatch: 'Sweet Shop-Host',
-        startTime: host.startTime, endTime: BJ_OPEN_PRE,
-        breakMinutes: 0, isBreak: false, category: 'Retail'
-      });
-      // B&J from 12:00 onwards
-      assignments.push({
-        unit: "Ben & Jerry's", position: 'Retail Host', positionType: 'Host (B&J from open)',
-        staff: host.name, zone, dayCode, trainingMatch: "Ben & Jerry's-Host",
-        startTime: BJ_OPEN_PRE, endTime: host.endTime,
-        breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail'
-      });
-      console.log(`   🍦 [PRE] ${host.name} → Sweet Shop (${host.startTime}-${BJ_OPEN_PRE}) then Ben & Jerry's (${BJ_OPEN_PRE}-${host.endTime})`);
-    } else {
-      assignments.push({
-        unit: "Ben & Jerry's", position: 'Retail Host', positionType: 'Host (B&J from open)',
-        staff: host.name, zone, dayCode, trainingMatch: "Ben & Jerry's-Host",
-        startTime: host.startTime, endTime: host.endTime,
-        breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail'
-      });
-      console.log(`   🍦 [PRE] ${host.name} → Ben & Jerry's (${host.startTime}-${host.endTime})`);
-    }
-    assignedStaff.add(host.name);
-    // ✅ Do NOT count toward Sweet Shop fill — these staff leave at 12:00
-    assigned++;
-    bjPreFilled++;
-  }
-  if (bjPreFilled < BJ_MIN_GUARANTEE) {
-    console.log(`   ⚠️  B&J pre-pass: only found ${bjPreFilled}/${BJ_MIN_GUARANTEE} trained staff`);
-  }
-}
-
 // ============================================================================
 // STEP 2: Assign Full-Shift Hosts to All-Day Coverage Units
 // ============================================================================
@@ -3541,10 +3488,6 @@ for (const staff of allRemainingStaff) {
     const isSeniorHost = staffByType.seniorHostsFullShift.includes(staff);
     
     if (requiresSeniorHost && !isSeniorHost) return false;
-
-    // ✅ SKILL GATE: B&J, B&J Kiosk, Sweet Shop, Sealife require trained staff only
-    const STEP4_SKILL_REQUIRED = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sweet Shop', 'Sealife']);
-    if (STEP4_SKILL_REQUIRED.has(req.unitName) && !hasSkillForUnit(staff.name, req.unitName, skillsData)) return false;
     
     return isHost && isRetailAdmissions && notBreakCover && needsStaff;
   });
