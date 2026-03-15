@@ -2698,16 +2698,47 @@ app.post('/api/auto-assign', upload.fields([
             if (!targetRetailUnit) {
               // ⚠️ SAFETY: Never send untrained staff to specialized units!
               // Ben & Jerry's and Kiosk require specific training - SKILL REQUIRED
-              const SKILL_REQUIRED_UNITS = ["Ben & Jerry's", "Ben & Jerry's Kiosk"];
-              
-              // Find first retail unit that hasn't reached overflow cap
-              // and doesn't require specialized training
+              const SKILL_REQUIRED_UNITS = ["Ben & Jerry's", "Ben & Jerry's Kiosk", "Sealife"];
+
+              // ✅ FIX 23: Operational minimums — skip units already at their staffing floor
+              const STEP6_UNIT_MINIMUMS = {
+                'Adventures Point Gift Shop': 3,
+                'Sweet Shop': 3,
+                'Explorer Supplies': 2,
+                'Sealife': 2,
+                'Lorikeets': 1,
+                "Ben & Jerry's": 2
+              };
+
+              // First pass: only route to units below their operational minimum
               targetRetailUnit = RETAIL_PRIORITY.find(unit => {
                 const hasUnit = staffingRequirements.some(r => r.unitName === unit);
                 const belowCap = (overflowPerUnit[unit] || 0) < MAX_OVERFLOW_PER_UNIT;
                 const noSkillRequired = !SKILL_REQUIRED_UNITS.includes(unit);
+                if (unit === 'Sealife') {
+                  const sealifeTotal = updatedAssignments.filter(a => a.unit === 'Sealife' && !a.isBreak && a.staff !== 'UNFILLED').length;
+                  if (sealifeTotal >= 2) return false;
+                }
+                const currentUnitCount = updatedAssignments.filter(a => a.unit === unit && !a.isBreak && a.staff !== 'UNFILLED').length;
+                const unitMin = STEP6_UNIT_MINIMUMS[unit] || 0;
+                if (currentUnitCount >= unitMin) return false;
                 return hasUnit && belowCap && noSkillRequired;
               });
+
+              // Second pass fallback: any unit below overflow cap
+              if (!targetRetailUnit) {
+                targetRetailUnit = RETAIL_PRIORITY.find(unit => {
+                  const hasUnit = staffingRequirements.some(r => r.unitName === unit);
+                  const belowCap = (overflowPerUnit[unit] || 0) < MAX_OVERFLOW_PER_UNIT;
+                  const noSkillRequired = !SKILL_REQUIRED_UNITS.includes(unit);
+                  if (unit === 'Sealife') {
+                    const sealifeTotal = updatedAssignments.filter(a => a.unit === 'Sealife' && !a.isBreak && a.staff !== 'UNFILLED').length;
+                    if (sealifeTotal >= 2) return false;
+                  }
+                  return hasUnit && belowCap && noSkillRequired;
+                });
+              }
+
               if (targetRetailUnit) {
                   console.log(`   ⚠️  ${staffName}: ${entranceUnit} → ${targetRetailUnit} (fallback, no skill match)`);
                 }
@@ -3265,9 +3296,15 @@ for (const req of retailAdmissionsUnits) {
   }
 }
 
+// Units that require specific skills — only trained staff should be assigned
+const SKILL_GATED_STEP2 = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sealife', 'Sweet Shop']);
+
 for (const assignment of fullShiftAssignments) {
   for (let i = 0; i < assignment.count; i++) {
-    const availableHost = staffByType.regularHostsFullShift.find(s => !assignedStaff.has(s.name));
+    // ✅ FIX: For skill-gated units, only assign trained staff
+    const availableHost = SKILL_GATED_STEP2.has(assignment.req.unitName)
+      ? staffByType.regularHostsFullShift.find(s => !assignedStaff.has(s.name) && hasSkillForUnit(s.name, assignment.req.unitName, skillsData))
+      : staffByType.regularHostsFullShift.find(s => !assignedStaff.has(s.name));
     
     if (availableHost) {
       assignments.push({
@@ -3681,7 +3718,95 @@ if (targetsExceeded) {
         matchingBreakCover = breakCoverReqs[0];
       }
       
-      if (matchingBreakCover) {
+      if (matchingBreakCover && breakCoverType.includes('Retail')) {
+        // ✅ FIX 21-24: Route Retail BC to understaffed unit as base (not just "Retail Break Cover")
+        // They'll rove from their base unit to cover breaks across retail
+        const BC_PLACEMENT_PRIORITY = [
+          'Adventures Point Gift Shop', 'Sweet Shop', "Ben & Jerry's",
+          'Explorer Supplies', 'Sealife', 'Lorikeets'
+        ];
+        // Target higher than enforcement minimums so BC staff still get placed
+        // APGS target 5 allows both BC persons to base here
+        const BC_UNIT_MINIMUMS = {
+          'Adventures Point Gift Shop': 5,
+          'Sweet Shop': 4,
+          "Ben & Jerry's": 3,
+          'Explorer Supplies': 2,
+          'Sealife': 2,
+          'Lorikeets': 2
+        };
+        // Only skill-gate truly specialized units
+        const SKILL_GATED_BC = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sweet Shop', 'Sealife']);
+
+        let bcBaseUnit = null;
+        let bcBaseReq = null;
+
+        console.log(`  🔍 BC placement debug for ${timegripStaff.name}:`);
+        for (const unitName of BC_PLACEMENT_PRIORITY) {
+          if (unitName === 'Sealife') {
+            const sealifeCount = assignments.filter(a => a.unit === 'Sealife' && !a.isBreak && a.staff !== 'UNFILLED').length;
+            if (sealifeCount >= 2) { console.log(`    ${unitName}: SKIP (Sealife hard cap)`); continue; }
+          }
+          if (SKILL_GATED_BC.has(unitName) && !hasSkillForUnit(timegripStaff.name, unitName, skillsData)) {
+            console.log(`    ${unitName}: SKIP (skill-gated — not trained)`);
+            continue;
+          }
+          const candidateReq = staffingRequirements.find(r =>
+            r.unitName === unitName && r.position.includes('Host') && !r.position.includes('Senior Host')
+          );
+          if (!candidateReq) { console.log(`    ${unitName}: SKIP (no req)`); continue; }
+          const currentCount = assignments.filter(a => a.unit === unitName && !a.isBreak && a.staff !== 'UNFILLED').length;
+          const minimum = BC_UNIT_MINIMUMS[unitName] || 2;
+          console.log(`    ${unitName}: count=${currentCount}, target=${minimum}, placing=${currentCount < minimum}`);
+          if (currentCount < minimum) {
+            bcBaseUnit = unitName;
+            bcBaseReq = candidateReq;
+            break;
+          }
+        }
+
+        if (bcBaseUnit && bcBaseReq) {
+          assignments.push({
+            unit: bcBaseUnit,
+            position: bcBaseReq.position,
+            positionType: 'Break Cover (Overflow)',
+            staff: timegripStaff.name,
+            zone: zone,
+            dayCode: dayCode,
+            trainingMatch: `${bcBaseUnit}-Break Cover`,
+            startTime: timegripStaff.startTime,
+            endTime: timegripStaff.endTime,
+            breakMinutes: 0,
+            isBreak: false,
+            isBreakCover: true
+          });
+          assignedStaff.add(timegripStaff.name);
+          console.log(`  ✅ ${timegripStaff.name} → ${bcBaseUnit} [Retail BC — based here, roams for cover]`);
+          assigned++;
+          assigned_bc = true;
+        } else {
+          // Fallback: stationary at Retail Break Cover
+          const req = matchingBreakCover;
+          assignments.push({
+            unit: req.unitName,
+            position: req.position,
+            positionType: 'Break Cover',
+            staff: timegripStaff.name,
+            zone: zone,
+            dayCode: dayCode,
+            trainingMatch: `${req.unitName}-Break Cover`,
+            startTime: timegripStaff.startTime,
+            endTime: timegripStaff.endTime,
+            breakMinutes: 0,
+            isBreak: false,
+            isBreakCover: true
+          });
+          assignedStaff.add(timegripStaff.name);
+          console.log(`  ✅ ${timegripStaff.name} → ${req.unitName} [Retail BC — stationary fallback]`);
+          assigned++;
+          assigned_bc = true;
+        }
+      } else if (matchingBreakCover) {
         const req = matchingBreakCover;
         assignments.push({
           unit: req.unitName,
