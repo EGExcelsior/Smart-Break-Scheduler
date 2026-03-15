@@ -910,18 +910,10 @@ function getPreferredBreakSlot(assignment, breakSlots, allAssignments) {
     return breakSlots[1]; // 12:00
   }
   
-  // Priority 5: LATE STARTERS (11:00+) → 13:00 for early closes, 14:00 for late closes
-  if (startMinutes >= 660) { // 11:00 = 660 minutes
-    // Check if early close (≤17:00) or late close (>17:00)
-    const isEarlyClose = endMinutes <= 1020; // 17:00 = 1020 minutes
-    
-    if (isEarlyClose) {
-      console.log(`   ⏰ ${assignment.staff || 'Staff'}: Late starter (${startTime}), early close (${endTime}) → 13:00 break`);
-      return breakSlots[2]; // 13:00 (NOT 14:00 for 4pm/5pm closes!)
-    } else {
-      console.log(`   ⏰ ${assignment.staff || 'Staff'}: Late starter (${startTime}), late close (${endTime}) → 14:00 break`);
-      return breakSlots[3]; // 14:00 (OK for 6pm/7pm closes)
-    }
+  // Priority 5: LATE STARTERS (11:00+) → always 14:00, cascade to 15:00 only
+  if (startMinutes >= 660) {
+    console.log(`   ⏰ ${assignment.staff || 'Staff'}: Late starter (${startTime}) → 14:00 break`);
+    return breakSlots[3]; // 14:00
   }
   
   // Default: Early break
@@ -1418,7 +1410,20 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
       
       // ✅ SMART STAGGERING: Category-aware + slot capacity
       const category = primaryAssignment.category;
-      
+
+      // Shift-start helpers — used in cascade caps below
+      const shiftStartMin = timeToMinutes(primaryAssignment.startTime || '09:00');
+      const isEarlyStarter = shiftStartMin < 540;   // before 09:00 (e.g. 08:30)
+      const isLateStarter  = shiftStartMin >= 660;  // 11:00+
+      const isMidStarter   = !isEarlyStarter && !isLateStarter; // 09:00–10:45
+
+      // ✅ AZTECA OVERRIDE: 08:30 starters at Azteca ALWAYS break at 11:00
+      // Force regardless of slot capacity — they've been there since 08:30
+      if (primaryAssignment.unit === 'Azteca Entrance' && isEarlyStarter) {
+        targetSlot = breakSlots[0]; // Always 11:00
+        console.log(`   🏛️  ${staffName}: Azteca Entrance → forced 11:00 break`);
+      } else {
+
       // STEP 1: Check category-specific limits to prevent clustering
       const sameCategoryInSlot = targetSlot.assigned.filter(assignedStaff => {
         const assignmentData = assignmentsToProcess.find(x => x.staff === assignedStaff);
@@ -1427,33 +1432,39 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
       
       // Define max per category per slot
       const categoryLimits = {
-        'Car Parks': 1,      // Car Parks work alone → stagger all breaks
-        'GHI': 2,            // GHI can have 2 people break together
-        'Admissions': 2,     // Admissions can have 2 at same slot
-        'Retail': 2          // Retail can have 2 at same slot
+        'Car Parks': 1,
+        'GHI': 2,
+        'Admissions': 2,
+        'Retail': 2
       };
       
       const maxForCategory = categoryLimits[category] || 2;
       
-      // If category limit reached, find next available slot for this category
+      // If category limit reached, find next available slot
       if (sameCategoryInSlot >= maxForCategory) {
         const currentSlotIndex = breakSlots.findIndex(s => s.start === targetSlot.start);
-        const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020; // ≤17:00
+        const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020;
         
         for (let i = currentSlotIndex + 1; i < breakSlots.length; i++) {
           const nextSlot = breakSlots[i];
-          
-          // CRITICAL: Skip 15:00 breaks for early closes (4pm/5pm)
-          if (isEarlyClose && nextSlot.start === '15:00') {
-            continue; // Skip to next slot
+          const nextSlotMin = timeToMinutes(nextSlot.start);
+
+          // ✅ HARD CASCADE CAPS — never push past these limits
+          if (isEarlyStarter && nextSlotMin > 780) {
+            console.log(`   🌅 ${staffName}: Early starter cascade capped at 13:00`);
+            targetSlot = breakSlots[2]; break; // 13:00 max
           }
+          if (isMidStarter && nextSlotMin > 840) {
+            console.log(`   🕐 ${staffName}: Mid-starter cascade capped at 14:00`);
+            targetSlot = breakSlots[3]; break; // 14:00 max
+          }
+          if (isEarlyClose && nextSlot.start === '15:00') continue;
           
           const sameCategoryInNext = nextSlot.assigned.filter(assignedStaff => {
             const assignmentData = assignmentsToProcess.find(x => x.staff === assignedStaff);
             return assignmentData && assignmentData.category === category;
           }).length;
           
-          // Move if next slot has room for this category AND isn't completely full
           if (sameCategoryInNext < maxForCategory && nextSlot.assigned.length < nextSlot.capacity) {
             console.log(`   🔄 ${staffName}: ${sameCategoryInSlot} ${category} already at ${targetSlot.start}, moving to ${nextSlot.start}`);
             targetSlot = nextSlot;
@@ -1462,16 +1473,22 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
         }
       }
       
-      // STEP 2: Check overall slot capacity (if slot is completely full)
+      // STEP 2: Check overall slot capacity
       if (targetSlot.assigned.length >= targetSlot.capacity) {
         const currentSlotIndex = breakSlots.findIndex(s => s.start === targetSlot.start);
-        const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020; // ≤17:00
+        const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020;
         
         for (let i = currentSlotIndex + 1; i < breakSlots.length; i++) {
-          // CRITICAL: Skip 15:00 breaks for early closes (4pm/5pm)
-          if (isEarlyClose && breakSlots[i].start === '15:00') {
-            continue; // Skip to next slot
+          const nextSlotMin = timeToMinutes(breakSlots[i].start);
+
+          // ✅ HARD CASCADE CAPS
+          if (isEarlyStarter && nextSlotMin > 780) {
+            targetSlot = breakSlots[2]; break; // 13:00 max
           }
+          if (isMidStarter && nextSlotMin > 840) {
+            targetSlot = breakSlots[3]; break; // 14:00 max
+          }
+          if (isEarlyClose && breakSlots[i].start === '15:00') continue;
           
           if (breakSlots[i].assigned.length < breakSlots[i].capacity) {
             console.log(`   🔄 ${staffName}: Slot ${targetSlot.start} full (${targetSlot.assigned.length}/${targetSlot.capacity}), moving to ${breakSlots[i].start}`);
@@ -1480,6 +1497,21 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
           }
         }
       }
+
+      // ✅ ABSOLUTE FINAL CAP — safety net regardless of all logic above
+      const finalSlotMin = timeToMinutes(targetSlot.start);
+      if (isEarlyStarter && finalSlotMin > 780) {
+        targetSlot = breakSlots[2];
+        console.log(`   🔒 ${staffName}: Hard cap → 13:00`);
+      } else if (isMidStarter && finalSlotMin > 840) {
+        targetSlot = breakSlots[3];
+        console.log(`   🔒 ${staffName}: Hard cap → 14:00`);
+      } else if (isLateStarter && finalSlotMin > 900) {
+        targetSlot = breakSlots[4];
+        console.log(`   🔒 ${staffName}: Hard cap → 15:00`);
+      }
+
+      } // end Azteca override else
       
       // Assign to target slot if space available
       if (targetSlot && targetSlot.assigned.length < targetSlot.capacity) {
@@ -3284,6 +3316,60 @@ for (const unitName of priorityUnitsForSeniorHost) {
 // STEP 2: Assign Full-Shift Hosts to All-Day Coverage Units
 // ============================================================================
 console.log(`\n   📍 STEP 2: Assigning full-shift Hosts for all-day coverage...`);
+
+// 🍦 B&J PRE-PASS: Guarantee minimum 2 trained staff at B&J from 12:00
+// Staff who start before 12:00 work Sweet Shop in the morning, then B&J from 12:00
+// This runs BEFORE the main STEP 2 loop so trained staff are reserved for B&J
+const BJ_OPEN_PRE = '12:00';
+const BJ_MIN_GUARANTEE = 2;
+const bjBaseReq = staffingRequirements.find(r => r.unitName === "Ben & Jerry's");
+if (bjBaseReq) {
+  const bjTrainedAvailable = staffByType.regularHostsFullShift.filter(s =>
+    !assignedStaff.has(s.name) && hasSkillForUnit(s.name, "Ben & Jerry's", skillsData)
+  );
+  console.log(`   🍦 B&J pre-pass: ${bjTrainedAvailable.length} trained staff available, guaranteeing ${BJ_MIN_GUARANTEE} from ${BJ_OPEN_PRE}`);
+
+  let bjPreFilled = 0;
+  for (const host of bjTrainedAvailable) {
+    if (bjPreFilled >= BJ_MIN_GUARANTEE) break;
+    const startsBeforeBJ = timeToMinutes(host.startTime) < timeToMinutes(BJ_OPEN_PRE);
+
+    if (startsBeforeBJ) {
+      // Morning at Sweet Shop, then B&J from 12:00
+      assignments.push({
+        unit: 'Sweet Shop', position: 'Retail Host', positionType: 'Host (Morning Cover)',
+        staff: host.name, zone, dayCode, trainingMatch: 'Sweet Shop-Host',
+        startTime: host.startTime, endTime: BJ_OPEN_PRE,
+        breakMinutes: 0, isBreak: false, category: 'Retail'
+      });
+      assignments.push({
+        unit: "Ben & Jerry's", position: 'Retail Host', positionType: "Host (B&J from open)",
+        staff: host.name, zone, dayCode, trainingMatch: "Ben & Jerry's-Host",
+        startTime: BJ_OPEN_PRE, endTime: host.endTime,
+        breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail'
+      });
+      console.log(`   🍦 [PRE] ${host.name} → Sweet Shop (${host.startTime}-${BJ_OPEN_PRE}) then Ben & Jerry's (${BJ_OPEN_PRE}-${host.endTime})`);
+    } else {
+      // Starts at or after 12:00 — straight to B&J
+      assignments.push({
+        unit: "Ben & Jerry's", position: 'Retail Host', positionType: "Host (B&J from open)",
+        staff: host.name, zone, dayCode, trainingMatch: "Ben & Jerry's-Host",
+        startTime: host.startTime, endTime: host.endTime,
+        breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail'
+      });
+      console.log(`   🍦 [PRE] ${host.name} → Ben & Jerry's (${host.startTime}-${host.endTime})`);
+    }
+
+    assignedStaff.add(host.name);
+    // ✅ Do NOT count toward Sweet Shop fill — these staff leave at 12:00
+    // STEP 2 must still assign permanent Sweet Shop hosts
+    assigned++;
+    bjPreFilled++;
+  }
+  if (bjPreFilled < BJ_MIN_GUARANTEE) {
+    console.log(`   ⚠️  B&J pre-pass: only found ${bjPreFilled}/${BJ_MIN_GUARANTEE} trained staff`);
+  }
+}
 
 // ✅ BUILD DYNAMIC ASSIGNMENT LIST from unfilled retail/admissions requirements
 const fullShiftAssignments = [];
