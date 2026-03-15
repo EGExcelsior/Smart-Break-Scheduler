@@ -207,7 +207,7 @@ function hasSkillForUnit(staffName, targetUnit, skillsData) {
   }
   
   const unitSkillMap = {
-    'Lodge Entrance': 'Admissions': 'Admissions', 'Explorer Entrance': 'Admissions', 'Schools Entrance': 'Admissions',
+    'Lodge Entrance': 'Admissions', 'Azteca Entrance': 'Admissions', 'Explorer Entrance': 'Admissions', 'Schools Entrance': 'Admissions',
     'Adventures Point Gift Shop': 'Adventure Point Gift Shop', 'Sweet Shop': 'Sweet Shop', 'Sealife': 'Sea Life', 'Lorikeets': 'Retail',
     'Car Parks - Staff Car Park': 'Car Parks', 'Car Parks - Hotel Car Park': 'Car Parks', 'Car Parks - Express': 'Car Parks',
     'Car Parks - Split': 'Car Parks', 'Car Parks - Flamingo': 'Car Parks', 'Car Parks - Giraffe': 'Car Parks', 'Car Parks - Gorilla': 'Car Parks',
@@ -231,7 +231,7 @@ function hasSkillForUnit(staffName, targetUnit, skillsData) {
 function getPositionForUnit(unit) {
   const positionMap = {
     'Gift Shop': 'Retail Host', 'Adventures Point Gift Shop': 'Retail Host', 'Sweet Shop': 'Retail Host', 'Sealife': 'Retail Host',
-    'Lodge Entrance': 'Admissions Host': 'Admissions Host', 'Explorer Entrance': 'Admissions Host', 'Schools Entrance': 'Admissions Host',
+    'Lodge Entrance': 'Admissions Host', 'Azteca Entrance': 'Admissions Host', 'Explorer Entrance': 'Admissions Host', 'Schools Entrance': 'Admissions Host',
     'Car Parks - Staff Car Park': 'Car Parks Host', 'Car Parks - Hotel Car Park': 'Car Parks Host'
   };
   return positionMap[unit] || `${unit} Host`;
@@ -3255,7 +3255,7 @@ if (aztecaReq && otherEntrancesOpen) {
 
     // 08:30 → 10:00 at Azteca
     assignments.push({
-      unit: position: aztecaReq.position,
+      unit: 'Azteca Entrance', position: aztecaReq.position,
       positionType: 'Host (Azteca Morning)',
       staff: host.name, zone, dayCode,
       trainingMatch: 'Azteca Entrance-Host',
