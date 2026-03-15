@@ -1426,12 +1426,14 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
         console.log(`   🏛️  ${staffName}: Azteca Entrance → forced 11:00 break`);
       } else {
 
-      // ✅ PER-UNIT STAGGER (runs FIRST — before category cascade)
-      // For 2-person units (Supplies, Sealife): if person 1 is at 12:00, person 2 gets 13:00
-      // This runs early so the cascade caps don't push both to 14:00 first
+      // ✅ 2-PERSON UNIT HANDLING: bypass category cascade, use unit stagger only
+      // This guarantees Supplies/Sealife get 12:00 + 13:00 not both 14:00
       const unitForCheck = primaryAssignment.unit;
       const unitTotal = assignmentsToProcess.filter(a => a.unit === unitForCheck && !a.isBreakCover && !a.isBreak).length;
-      if (unitTotal <= 2) {
+      const isTwoPersonUnit = unitTotal <= 2;
+
+      if (isTwoPersonUnit) {
+        // For 2-person units: just find a slot where no one from same unit is already breaking
         const sameUnitInSlot = targetSlot.assigned.filter(s => {
           const a = assignmentsToProcess.find(x => x.staff === s);
           return a && a.unit === unitForCheck;
@@ -1442,14 +1444,18 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
             const ns = breakSlots[i];
             const sameUnitNext = ns.assigned.filter(s => { const a = assignmentsToProcess.find(x => x.staff === s); return a && a.unit === unitForCheck; }).length;
             if (sameUnitNext === 0) {
-              console.log(`   🏪 ${staffName}: Same-unit conflict (${unitForCheck}), moving to ${ns.start}`);
+              console.log(`   🏪 ${staffName}: 2-person unit stagger (${unitForCheck}), moving ${targetSlot.start} → ${ns.start}`);
               targetSlot = ns; break;
             }
           }
         }
-      }
+        // Still apply absolute cap after stagger
+        const finalMin2 = timeToMinutes(targetSlot.start);
+        if (isEarlyStarter && finalMin2 > 780) { targetSlot = breakSlots[2]; }
+        else if (isMidStarter && finalMin2 > 840) { targetSlot = breakSlots[3]; }
+      } else {
 
-      // STEP 1: category stagger
+      // STEP 1: category stagger (only for 3+ person units)
       const sameCategoryInSlot = targetSlot.assigned.filter(s => {
         const a = assignmentsToProcess.find(x => x.staff === s);
         return a && a.category === category;
@@ -1489,11 +1495,13 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
         }
       }
 
-      // ✅ ABSOLUTE FINAL CAP — enforced after ALL cascade and stagger logic
+      // ✅ ABSOLUTE FINAL CAP
       const finalMin = timeToMinutes(targetSlot.start);
       if (isEarlyStarter && finalMin > 780) { targetSlot = breakSlots[2]; console.log(`   🔒 ${staffName}: Hard cap → 13:00`); }
       else if (isMidStarter && finalMin > 840) { targetSlot = breakSlots[3]; console.log(`   🔒 ${staffName}: Hard cap → 14:00`); }
       else if (isLateStarter && finalMin > 900) { targetSlot = breakSlots[4]; console.log(`   🔒 ${staffName}: Hard cap → 15:00`); }
+
+      } // end 3+ person unit block
 
       } // end Azteca override else
 
