@@ -9,13 +9,19 @@ const fs = require('fs').promises;
 function createEmptyAlerts() {
   return {
     absenceWithShift: [],
+    absenceIncludedByOverride: [],
     absentStaffSkipped: []
   };
 }
 
-async function parseTimegripCsv(filePath, targetTeam, targetDate = null) {
+function normalizeNameKey(value) {
+  return (value || '').toString().trim().toLowerCase();
+}
+
+async function parseTimegripCsv(filePath, targetTeam, targetDate = null, options = {}) {
   const content = await fs.readFile(filePath, 'utf-8');
   const lines = content.split('\n');
+  const includeAbsentStaffNames = new Set((options.includeAbsentStaffNames || []).map(normalizeNameKey));
   
   // Convert target date
   let searchDate = targetDate;
@@ -29,7 +35,7 @@ async function parseTimegripCsv(filePath, targetTeam, targetDate = null) {
   console.log(`🔍 Looking for staff working on: ${searchDate || 'any date'}`);
   
   // TRY TABULAR FORMAT
-  const tabularResult = parseTabularCsv(lines, searchDate);
+  const tabularResult = parseTabularCsv(lines, searchDate, { includeAbsentStaffNames });
   
   if (tabularResult.workingStaff.length > 0) {
     console.log(`\n✅ TABULAR format SUCCESS! Found ${tabularResult.workingStaff.length} staff\n`);
@@ -43,7 +49,8 @@ async function parseTimegripCsv(filePath, targetTeam, targetDate = null) {
   return workplanResult;
 }
 
-function parseTabularCsv(lines, searchDate) {
+function parseTabularCsv(lines, searchDate, options = {}) {
+  const includeAbsentStaffNames = options.includeAbsentStaffNames || new Set();
   // Find header row
   let headerIndex = -1;
   let headers = [];
@@ -112,16 +119,22 @@ function parseTabularCsv(lines, searchDate) {
         endTime,
         plannedFunction: plannedFunction ? plannedFunction.trim() : '',
         absenceCode: absenceCode.trim(),
-        absenceReason: absenceReason ? absenceReason.trim() : ''
+        absenceReason: absenceReason ? absenceReason.trim() : '',
+        includedByOverride: includeAbsentStaffNames.has(normalizeNameKey(name))
       };
 
-      alerts.absentStaffSkipped.push(alertRecord);
       if (alertRecord.startTime && alertRecord.endTime && alertRecord.plannedFunction) {
         alerts.absenceWithShift.push(alertRecord);
       }
 
-      console.log(`  ⚠️  ${name}: ABSENT (Code ${absenceCode}${absenceReason ? ` - ${absenceReason}` : ''}) - SKIPPED`);
-      continue;
+      if (alertRecord.includedByOverride) {
+        alerts.absenceIncludedByOverride.push(alertRecord);
+        console.log(`  ⚠️  ${name}: ABSENT (Code ${absenceCode}${absenceReason ? ` - ${absenceReason}` : ''}) - INCLUDED BY OVERRIDE`);
+      } else {
+        alerts.absentStaffSkipped.push(alertRecord);
+        console.log(`  ⚠️  ${name}: ABSENT (Code ${absenceCode}${absenceReason ? ` - ${absenceReason}` : ''}) - SKIPPED`);
+        continue;
+      }
     }
     
     // Parse break
@@ -168,7 +181,7 @@ function parseTabularCsv(lines, searchDate) {
     console.log(`\n🚨 TimeGrip alert: ${alerts.absenceWithShift.length} staff have an absence code but also a scheduled shift:`);
     alerts.absenceWithShift.forEach((item) => {
       console.log(
-        `   - ${item.name} (${item.startTime}-${item.endTime}, ${item.plannedFunction}, code ${item.absenceCode}${item.absenceReason ? ` - ${item.absenceReason}` : ''})`
+        `   - ${item.name} (${item.startTime}-${item.endTime}, ${item.plannedFunction}, code ${item.absenceCode}${item.absenceReason ? ` - ${item.absenceReason}` : ''}${item.includedByOverride ? ', included' : ', skipped'})`
       );
     });
   }
@@ -180,6 +193,7 @@ function parseTabularCsv(lines, searchDate) {
     alerts: {
       ...alerts,
       absenceWithShiftCount: alerts.absenceWithShift.length,
+      absenceIncludedByOverrideCount: alerts.absenceIncludedByOverride.length,
       absentStaffSkippedCount: alerts.absentStaffSkipped.length
     }
   };
@@ -271,6 +285,7 @@ function parseWorkplanFormat(lines, searchDate) {
     alerts: {
       ...alerts,
       absenceWithShiftCount: 0,
+      absenceIncludedByOverrideCount: 0,
       absentStaffSkippedCount: 0
     }
   };

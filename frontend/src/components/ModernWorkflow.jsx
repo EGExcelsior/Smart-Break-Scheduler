@@ -36,6 +36,7 @@ const ModernWorkflow = () => {
       selectedUnits,
       analysisResult,
       assignmentResult,
+      includedAbsentStaff,
       loading,
       error,
       canProceedStep1,
@@ -60,6 +61,7 @@ const ModernWorkflow = () => {
       handleResetDefaults,
       handleParseAnalyze,
       handleAutoAssign,
+      handleToggleIncludedAbsentStaff,
       resetWorkflow
     }
   } = useModernWorkflow();
@@ -93,9 +95,11 @@ const ModernWorkflow = () => {
       {currentStep === 2 && analysisResult && (
         <StepTwoReviewAnalysis
           analysisResult={analysisResult}
+          includedAbsentStaff={includedAbsentStaff}
           loading={loading}
           canProceed={canProceedStep2}
           onBack={() => setCurrentStep(1)}
+          onToggleIncludedAbsentStaff={handleToggleIncludedAbsentStaff}
           onLoadUnits={handleFetchUnitStatus}
         />
       )}

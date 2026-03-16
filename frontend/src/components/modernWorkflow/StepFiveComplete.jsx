@@ -25,6 +25,9 @@ const StepFiveComplete = ({ assignmentResult, selectedUnits, date, dayCode, onRe
             <p>
               Review needed: {alertSummary.absenceWithShiftCount} staff member(s) had an Absence Code but still appeared with a shift.
             </p>
+            {(alertSummary.absenceIncludedByOverrideCount || 0) > 0 && (
+              <p>{alertSummary.absenceIncludedByOverrideCount} of these were included by your override selection.</p>
+            )}
             <ul className="warning-list">
               {alertSummary.absenceWithShift.map((item) => (
                 <li key={`${item.name}-${item.startTime}-${item.endTime}`}>

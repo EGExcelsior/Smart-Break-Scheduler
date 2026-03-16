@@ -506,8 +506,9 @@ async function generateExcelPlanner(scheduleData) {
 
   if (hasIssues) {
     for (const issue of absenceWithShiftIssues) {
+      const issueStatus = issue.includedByOverride ? 'INCLUDED BY OVERRIDE' : 'SKIPPED';
       const issueRow = worksheet.addRow([
-        `${issue.name} (${issue.startTime} - ${issue.endTime}) | ${issue.plannedFunction} | Absence Code: ${issue.absenceCode}${issue.absenceReason ? ` - ${issue.absenceReason}` : ''}`
+        `${issue.name} (${issue.startTime} - ${issue.endTime}) | ${issue.plannedFunction} | Absence Code: ${issue.absenceCode}${issue.absenceReason ? ` - ${issue.absenceReason}` : ''} | ${issueStatus}`
       ]);
 
       issueRow.getCell(1).font = { size: 10, bold: true, color: { argb: 'FF7F6000' } };

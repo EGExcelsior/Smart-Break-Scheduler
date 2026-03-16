@@ -2419,7 +2419,7 @@ app.post('/api/auto-assign', upload.fields([
   // ✅ V10.0: No file upload needed!
 ]), async (req, res) => {
   try {
-    const { teamName, zone, dayCode, date, selectedUnits } = req.body;
+    const { teamName, zone, dayCode, date, selectedUnits, includeAbsentStaff } = req.body;
     
     if (!req.files['skillsMatrix'] || !req.files['timegripCsv']) {
       return res.status(400).json({ error: 'Missing required files' });
@@ -2430,7 +2430,21 @@ app.post('/api/auto-assign', upload.fields([
     
     const sheetName = teamName.includes('Team') ? teamName : `Team ${teamName}`;
     const skillsData = await parseSkillsMatrix(skillsMatrixFile, sheetName);
-    const timegripData = await parseTimegripCsv(timegripFile, teamName, date);
+    let includeAbsentStaffNames = [];
+    if (includeAbsentStaff) {
+      try {
+        const parsed = JSON.parse(includeAbsentStaff);
+        if (Array.isArray(parsed)) {
+          includeAbsentStaffNames = parsed.filter(Boolean);
+        }
+      } catch (parseError) {
+        console.warn('⚠️ Invalid includeAbsentStaff payload, ignoring override list');
+      }
+    }
+
+    const timegripData = await parseTimegripCsv(timegripFile, teamName, date, {
+      includeAbsentStaffNames
+    });
     
     const zoneFilePath = ZONE_FILES[zone];
     if (!zoneFilePath) {

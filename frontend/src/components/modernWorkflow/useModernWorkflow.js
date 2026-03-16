@@ -34,6 +34,7 @@ const useModernWorkflow = () => {
   const [selectedUnits, setSelectedUnits] = useState([]);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [assignmentResult, setAssignmentResult] = useState(null);
+  const [includedAbsentStaff, setIncludedAbsentStaff] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -84,6 +85,7 @@ const useModernWorkflow = () => {
     setSelectedUnits([]);
     setAnalysisResult(null);
     setAssignmentResult(null);
+    setIncludedAbsentStaff([]);
     setCurrentStep(1);
 
     if (!selectedTeam) {
@@ -172,6 +174,7 @@ const useModernWorkflow = () => {
       const formData = createBaseFormData({ files, teamName, zone, date, dayCode });
       const data = await parseAndAnalyze(formData);
       setAnalysisResult(data);
+      setIncludedAbsentStaff([]);
       setCurrentStep(2);
     } catch (requestError) {
       setError(requestError.message);
@@ -187,6 +190,7 @@ const useModernWorkflow = () => {
     try {
       const formData = createBaseFormData({ files, teamName, zone, date, dayCode });
       formData.append('selectedUnits', JSON.stringify(selectedUnits));
+      formData.append('includeAbsentStaff', JSON.stringify(includedAbsentStaff));
 
       const data = await autoAssign(formData);
 
@@ -216,7 +220,20 @@ const useModernWorkflow = () => {
     setSelectedUnits([]);
     setAnalysisResult(null);
     setAssignmentResult(null);
+    setIncludedAbsentStaff([]);
     setError(null);
+  };
+
+  const handleToggleIncludedAbsentStaff = (staffName, shouldInclude) => {
+    setIncludedAbsentStaff((prev) => {
+      if (shouldInclude) {
+        if (prev.includes(staffName)) {
+          return prev;
+        }
+        return [...prev, staffName];
+      }
+      return prev.filter((name) => name !== staffName);
+    });
   };
 
   const canProceedStep1 = useMemo(() => {
@@ -239,6 +256,7 @@ const useModernWorkflow = () => {
       selectedUnits,
       analysisResult,
       assignmentResult,
+      includedAbsentStaff,
       loading,
       error,
       canProceedStep1,
@@ -263,6 +281,7 @@ const useModernWorkflow = () => {
       handleResetDefaults,
       handleParseAnalyze,
       handleAutoAssign,
+      handleToggleIncludedAbsentStaff,
       resetWorkflow
     }
   };

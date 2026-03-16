@@ -81,6 +81,16 @@
   margin-bottom: 4px;
 }
 
+.warning-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.warning-checkbox-row input {
+  margin-top: 2px;
+}
+
 .success-message {
   text-align: center;
   padding: 40px;
