@@ -3331,9 +3331,13 @@ if (aztecaReq && otherEntrancesOpen) {
     ...staffByType.seniorHostsFullShift
   ].filter(s => !assignedStaff.has(s.name) && s.startTime === '08:30');
 
-  // After Azteca, go to Lodge for an hour, then break at 11:00, then free for afternoon
-  const postAztecaUnit = staffingRequirements.some(r => r.unitName === 'Lodge Entrance')
-    ? 'Lodge Entrance' : 'Adventures Point Gift Shop';
+  // After Azteca, route support hour to the busiest entrance for the selected day code.
+  const EXPLORER_BASELINE_DAYS = new Set(['E', 'F', 'G', 'H', 'I']);
+  const hasExplorerEntrance = staffingRequirements.some(r => r.unitName === 'Explorer Entrance');
+  const hasLodgeEntrance = staffingRequirements.some(r => r.unitName === 'Lodge Entrance');
+  const postAztecaUnit = (EXPLORER_BASELINE_DAYS.has(dayCode) && hasExplorerEntrance)
+    ? 'Explorer Entrance'
+    : (hasLodgeEntrance ? 'Lodge Entrance' : 'Adventures Point Gift Shop');
 
   console.log(`\n   🚗 Azteca pre-pass: assigning 2 early starters (08:30–${AZTECA_LEAVE_TIME}), then ${postAztecaUnit} (${AZTECA_LEAVE_TIME}–${AZTECA_LODGE_TIME}), break at 11:00`);
 
@@ -3496,16 +3500,17 @@ for (const req of retailAdmissionsUnits) {
 }
 
 const STEP2_UNIT_PRIORITY = {
-  Sealife: 1,
-  'Sweet Shop': 2,
-  'Adventures Point Gift Shop': 3,
-  'Explorer Supplies': 4,
-  "Ben & Jerry's": 5,
-  "Ben & Jerry's Kiosk": 6,
-  'Lodge Entrance': 20,
-  'Explorer Entrance': 21,
-  'Schools Entrance': 22,
-  'Azteca Entrance': 23
+  // Prioritize Admissions host coverage first to avoid Lodge/Explorer imbalance.
+  'Explorer Entrance': 1,
+  'Lodge Entrance': 2,
+  'Schools Entrance': 3,
+  'Azteca Entrance': 4,
+  Sealife: 10,
+  'Sweet Shop': 11,
+  'Adventures Point Gift Shop': 12,
+  'Explorer Supplies': 13,
+  "Ben & Jerry's": 14,
+  "Ben & Jerry's Kiosk": 15
 };
 
 fullShiftAssignments.sort((a, b) => {
@@ -3631,11 +3636,20 @@ for (const assignment of fullShiftAssignments) {
 // ============================================================================
 console.log(`\n   📍 STEP 3: Assigning short-shift Hosts (morning coverage)...`);
 
-const shortShiftNeeded = 2;  // 2x Lodge Entrance 09:15-13:00
+const EXPLORER_BASELINE_DAYS = new Set(['E', 'F', 'G', 'H', 'I']);
+const shortShiftTargetUnit = EXPLORER_BASELINE_DAYS.has(dayCode) && staffingRequirements.some(r =>
+  r.unitName === 'Explorer Entrance' &&
+  r.position.includes('Host') &&
+  !r.position.includes('Senior Host')
+)
+  ? 'Explorer Entrance'
+  : 'Lodge Entrance';
+
+const shortShiftNeeded = 2;
 
 for (let i = 0; i < shortShiftNeeded; i++) {
   const req = staffingRequirements.find(r => 
-    r.unitName === 'Lodge Entrance' && 
+    r.unitName === shortShiftTargetUnit && 
     r.position.includes('Host') &&
     !r.position.includes('Senior Host')
   );
@@ -4444,6 +4458,7 @@ const coverageGaps = [];
 
 const MINIMUM_STAFF_REQUIRED = {
   'Lodge Entrance': 2,
+  'Explorer Entrance': 2,
   'Adventures Point Gift Shop': 2,
   'Sweet Shop': 2,
   'Sealife': 1,
@@ -4506,7 +4521,19 @@ for (const gap of coverageGaps) {
 const breakCoverRotations = [];
 let bcIndex = 0;
 
+const bcWindowStart = breakCoverStaffAvailable.length > 0
+  ? Math.min(...breakCoverStaffAvailable.map((a) => timeToMinutes(a.startTime)))
+  : null;
+const bcWindowEnd = breakCoverStaffAvailable.length > 0
+  ? Math.max(...breakCoverStaffAvailable.map((a) => timeToMinutes(a.endTime)))
+  : null;
+
 for (const [timeSlot, gaps] of Object.entries(gapsByTimeSlot)) {
+  const slotStart = timeToMinutes(timeSlot);
+  if (bcWindowStart !== null && bcWindowEnd !== null && (slotStart < bcWindowStart || slotStart >= bcWindowEnd)) {
+    continue;
+  }
+
   for (const gap of gaps) {
     if (bcIndex >= breakCoverStaffAvailable.length) break;
     
@@ -4932,20 +4959,9 @@ assignments.forEach(assignment => {
 });
 
 // ============================================================================
-// BUG #15: DETECT & ASSIGN BREAK COVER
+// BUG #15 (disabled): duplicate break-cover pass created invalid duplicate rows.
+// Smart break cover is already applied earlier in the flow.
 // ============================================================================
-
-const breakCoverStaffList = assignments.filter(s => s.isBreakCover);
-const regularStaffList = assignments.filter(s => !s.isBreakCover);
-
-console.log(`\n📊 Staff breakdown:`);
-console.log(`   Regular: ${regularStaffList.length}, Break cover: ${breakCoverStaffList.length}`);
-
-const bug15BreakCoverAssignments = assignBreakCover(breakCoverStaffList, regularStaffList, finalBreaksToSplit);
-
-for (const assignment of bug15BreakCoverAssignments) {
-  assignments.push(assignment);
-}
 
 // ============================================================================
 // BUG #15: GET PARK-WIDE UNITS
