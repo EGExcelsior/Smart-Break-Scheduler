@@ -3718,24 +3718,74 @@ if (suppliesReq && !hasUnfilledAdmissionsHost) {
     }
   }
 }
-// PRE-STEP 4: APGS min 3
-const apgsReqMin = staffingRequirements.find(r => r.unitName === 'Adventures Point Gift Shop' && r.position.includes('Host') && !r.position.includes('Senior'));
-if (apgsReqMin && !hasUnfilledAdmissionsHost) {
-  const sweetFilled = assignments.filter(a => a.unit === 'Sweet Shop' && !a.isBreak).length;
-  const sealifeFilled = assignments.filter(a => a.unit === 'Sealife' && !a.isBreak).length;
-  if (sweetFilled === 0 || sealifeFilled === 0) {
-    console.log(`   ⚠️  APGS min-pass skipped: preserve hosts for Sweet/Sealife coverage first (Sweet=${sweetFilled}, Sealife=${sealifeFilled})`);
-  } else {
+// PRE-STEP 4: APGS opening cover (10:00) min 2, then optional min 3 overall
+const APGS_UNIT = 'Adventures Point Gift Shop';
+const APGS_OPENING_TIME = '10:00';
+const APGS_OPENING_TARGET = 2;
+const APGS_OVERALL_TARGET = 3;
+
+const apgsReqMin = staffingRequirements.find(r => r.unitName === APGS_UNIT && r.position.includes('Host') && !r.position.includes('Senior'));
+if (apgsReqMin) {
   const aKey = `${apgsReqMin.unitName}-${apgsReqMin.position}`;
-  const aFilled = assignments.filter(a => a.unit === 'Adventures Point Gift Shop' && !a.isBreak).length;
-  if (aFilled < 3) {
-    for (const host of staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name))) {
-      if (assignments.filter(a => a.unit === 'Adventures Point Gift Shop' && !a.isBreak).length >= 3) break;
-      assignments.push({ unit: 'Adventures Point Gift Shop', position: apgsReqMin.position, positionType: 'Host (APGS Min)', staff: host.name, zone, dayCode, trainingMatch: 'Adventures Point Gift Shop-Host', startTime: host.startTime, endTime: host.endTime, breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail' });
-      assignedStaff.add(host.name); filledPositions.set(aKey, (filledPositions.get(aKey) || 0) + 1);
-      console.log(`   🛍️  ${host.name} → APGS (min 3)`); assigned++;
+  const openingMinute = timeToMinutes(APGS_OPENING_TIME);
+  const apgsOpenCoverage = assignments.filter((a) =>
+    a.unit === APGS_UNIT &&
+    !a.isBreak &&
+    a.staff !== 'UNFILLED' &&
+    timeToMinutes(a.startTime) <= openingMinute &&
+    timeToMinutes(a.endTime) > openingMinute
+  ).length;
+
+  if (apgsOpenCoverage < APGS_OPENING_TARGET) {
+    console.log(`   🛍️  APGS opening coverage ${apgsOpenCoverage}/${APGS_OPENING_TARGET} at ${APGS_OPENING_TIME}, topping up...`);
+    for (const host of staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name) && timeToMinutes(s.startTime) <= openingMinute)) {
+      const currentOpenCoverage = assignments.filter((a) =>
+        a.unit === APGS_UNIT &&
+        !a.isBreak &&
+        a.staff !== 'UNFILLED' &&
+        timeToMinutes(a.startTime) <= openingMinute &&
+        timeToMinutes(a.endTime) > openingMinute
+      ).length;
+
+      if (currentOpenCoverage >= APGS_OPENING_TARGET) break;
+
+      assignments.push({ unit: APGS_UNIT, position: apgsReqMin.position, positionType: 'Host (APGS Opening)', staff: host.name, zone, dayCode, trainingMatch: `${APGS_UNIT}-Host`, startTime: host.startTime, endTime: host.endTime, breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail' });
+      assignedStaff.add(host.name);
+      filledPositions.set(aKey, (filledPositions.get(aKey) || 0) + 1);
+      console.log(`   🛍️  ${host.name} → APGS (opening cover ${host.startTime}-${host.endTime})`);
+      assigned++;
+    }
+
+    const finalOpenCoverage = assignments.filter((a) =>
+      a.unit === APGS_UNIT &&
+      !a.isBreak &&
+      a.staff !== 'UNFILLED' &&
+      timeToMinutes(a.startTime) <= openingMinute &&
+      timeToMinutes(a.endTime) > openingMinute
+    ).length;
+    if (finalOpenCoverage < APGS_OPENING_TARGET) {
+      console.log(`   ⚠️  APGS opening still below target: ${finalOpenCoverage}/${APGS_OPENING_TARGET} at ${APGS_OPENING_TIME}`);
     }
   }
+
+  if (!hasUnfilledAdmissionsHost) {
+    const sweetFilled = assignments.filter(a => a.unit === 'Sweet Shop' && !a.isBreak).length;
+    const sealifeFilled = assignments.filter(a => a.unit === 'Sealife' && !a.isBreak).length;
+    if (sweetFilled === 0 || sealifeFilled === 0) {
+      console.log(`   ⚠️  APGS min-pass skipped: preserve hosts for Sweet/Sealife coverage first (Sweet=${sweetFilled}, Sealife=${sealifeFilled})`);
+    } else {
+      const aFilled = assignments.filter(a => a.unit === APGS_UNIT && !a.isBreak).length;
+      if (aFilled < APGS_OVERALL_TARGET) {
+        for (const host of staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name))) {
+          if (assignments.filter(a => a.unit === APGS_UNIT && !a.isBreak).length >= APGS_OVERALL_TARGET) break;
+          assignments.push({ unit: APGS_UNIT, position: apgsReqMin.position, positionType: 'Host (APGS Min)', staff: host.name, zone, dayCode, trainingMatch: `${APGS_UNIT}-Host`, startTime: host.startTime, endTime: host.endTime, breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail' });
+          assignedStaff.add(host.name);
+          filledPositions.set(aKey, (filledPositions.get(aKey) || 0) + 1);
+          console.log(`   🛍️  ${host.name} → APGS (min ${APGS_OVERALL_TARGET})`);
+          assigned++;
+        }
+      }
+    }
   }
 }
 
