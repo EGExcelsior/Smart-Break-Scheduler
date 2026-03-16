@@ -1659,12 +1659,14 @@ assigned += bcResult.assignedCount;
     
     // ✅ STEP 6: Afternoon Reassignment (Entrances → Retail After Breaks)
     console.log('\n🔄 Step 6: Reassigning entrance overflow staff to retail after breaks...');
-    const reassignedAssignments = reassignEntranceStaffAfternoon(
-      splitAndCoveredAssignments, 
-      staffingRequirements, 
+    const reassignedAssignments = reassignEntranceStaffAfternoon({
+      assignments: splitAndCoveredAssignments,
+      staffingRequirements,
       skillsData,
-      dayCode
-    );
+      dayCode,
+      timeToMinutes,
+      hasSkillForUnit
+    });
     
     // Step 7: Final assignments
     const finalAssignmentsBeforeStats = reassignedAssignments;
