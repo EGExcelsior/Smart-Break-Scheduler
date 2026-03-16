@@ -8,19 +8,19 @@ const { parseSkillsMatrix } = require('./parsers/skillsMatrixParser');
 const { parseTimegripCsv } = require('./parsers/timegripParser');
 const { parseZoneFile } = require('./parsers/zoneFileParser');
 const { generateExcelPlanner } = require('./generators/excelPlannerGenerator');
-const { classifyDeferredRetailAdmissions } = require('./services/deferredRetailClassifier');
-const { applyAztecaPrePass } = require('./services/aztecaPrePassAssignment');
-const { applySeniorHostPriorityStep } = require('./services/seniorHostPriorityAssignment');
-const { applyBjPrePass } = require('./services/benJerryPrePassAssignment');
-const { prepareFullShiftAssignmentsAndReserve } = require('./services/fullShiftPreparation');
-const { assignFullShiftHostsStep2 } = require('./services/fullShiftAssignment');
-const { assignShortShiftHostsStep3 } = require('./services/shortShiftAssignment');
-const { enforceRetailOpeningCoverage } = require('./services/retailOpeningCoverageEnforcement');
-const { assignRemainingHostsStep4 } = require('./services/remainingHostsAssignment');
-const { assignOverflowStaffStep5 } = require('./services/overflowStaffAssignment');
-const { assignBreakCoverStaff } = require('./services/breakCoverStaffAssignment');
-const { assignRemainingGenericStaff } = require('./services/flexibleStaffAssignment');
-const { analyzeBreakCoverageSmart } = require('./services/breakCoverageGapAnalysis');
+const { classifyDeferredRetailAdmissions } = require('./services/utilities/deferredRetailClassifier');
+const { applyAztecaPrePass } = require('./services/prepass/aztecaPrePassAssignment');
+const { applySeniorHostPriorityStep } = require('./services/enforcement/seniorHostPriorityAssignment');
+const { applyBjPrePass } = require('./services/prepass/benJerryPrePassAssignment');
+const { prepareFullShiftAssignmentsAndReserve } = require('./services/utilities/fullShiftPreparation');
+const { assignFullShiftHostsStep2 } = require('./services/assignments/fullShiftAssignment');
+const { assignShortShiftHostsStep3 } = require('./services/assignments/shortShiftAssignment');
+const { enforceRetailOpeningCoverage } = require('./services/enforcement/retailOpeningCoverageEnforcement');
+const { assignRemainingHostsStep4 } = require('./services/assignments/remainingHostsAssignment');
+const { assignOverflowStaffStep5 } = require('./services/assignments/overflowStaffAssignment');
+const { assignBreakCoverStaff } = require('./services/assignments/breakCoverStaffAssignment');
+const { assignRemainingGenericStaff } = require('./services/assignments/flexibleStaffAssignment');
+const { analyzeBreakCoverageSmart } = require('./services/enforcement/breakCoverageGapAnalysis');
 
 const { 
   timeToMinutes, 
