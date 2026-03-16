@@ -3582,14 +3582,17 @@ for (const reserveUnit of RETAIL_RESERVE_UNITS) {
 }
 
 for (const assignment of fullShiftAssignments) {
-  for (let i = 0; i < assignment.count; i++) {
+  // Check live fill count against requirement (not the stale pre-computed count)
+  // so that reserve pre-pass assignments are properly accounted for.
+  while ((filledPositions.get(assignment.unitPositionKey) || 0) < assignment.req.staffNeeded) {
     // ✅ FIX: For skill-gated units, only assign trained staff
     let availableHost = SKILL_GATED_STEP2.has(assignment.req.unitName)
       ? staffByType.regularHostsFullShift.find(s => !assignedStaff.has(s.name) && hasSkillForUnit(s.name, assignment.req.unitName, skillsData))
       : staffByType.regularHostsFullShift.find(s => !assignedStaff.has(s.name));
 
-    // Keep strict skill gating for B&J units, but allow baseline coverage fallback for Sweet/Sealife.
-    if (!availableHost && (assignment.req.unitName === 'Sweet Shop' || assignment.req.unitName === 'Sealife')) {
+    // Sweet Shop gets a fallback if no trained staff available (must always be covered).
+    // Sealife does NOT get a fallback — only trained staff; minimum 1, prefer 2 if trained available.
+    if (!availableHost && assignment.req.unitName === 'Sweet Shop') {
       availableHost = staffByType.regularHostsFullShift.find(s => !assignedStaff.has(s.name));
       if (availableHost) {
         console.log(`   ⚠️  ${assignment.req.unitName}: no trained host available, using fallback ${availableHost.name} for coverage`);
@@ -3618,6 +3621,7 @@ for (const assignment of fullShiftAssignments) {
       assigned++;
     } else {
       console.log(`   ⚠️  No available full-shift host for ${assignment.req.unitName}`);
+      break; // No more staff available for this position
     }
   }
 }
