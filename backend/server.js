@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -8,15 +8,19 @@ const { parseSkillsMatrix } = require('./parsers/skillsMatrixParser');
 const { parseTimegripCsv } = require('./parsers/timegripParser');
 const { parseZoneFile } = require('./parsers/zoneFileParser');
 const { generateExcelPlanner } = require('./generators/excelPlannerGenerator');
-const { classifyDeferredRetailAdmissions } = require('./services/autoAssignStaffClassifier');
-const { applyAztecaPrePass } = require('./services/autoAssignAztecaPrePass');
-const { applySeniorHostPriorityStep } = require('./services/autoAssignSeniorHostStep');
-const { applyBjPrePass } = require('./services/autoAssignBjPrePass');
-const { prepareFullShiftAssignmentsAndReserve } = require('./services/autoAssignFullShiftPrep');
-const { assignFullShiftHostsStep2 } = require('./services/autoAssignFullShiftExecution');
-const { assignShortShiftHostsStep3 } = require('./services/autoAssignShortShiftStep3');
-const { enforceRetailOpeningCoverage } = require('./services/autoAssignRetailOpeningPreStep4');
-const { assignRemainingHostsStep4 } = require('./services/autoAssignRemainingHostsStep4');
+const { classifyDeferredRetailAdmissions } = require('./services/deferredRetailClassifier');
+const { applyAztecaPrePass } = require('./services/aztecaPrePassAssignment');
+const { applySeniorHostPriorityStep } = require('./services/seniorHostPriorityAssignment');
+const { applyBjPrePass } = require('./services/benJerryPrePassAssignment');
+const { prepareFullShiftAssignmentsAndReserve } = require('./services/fullShiftPreparation');
+const { assignFullShiftHostsStep2 } = require('./services/fullShiftAssignment');
+const { assignShortShiftHostsStep3 } = require('./services/shortShiftAssignment');
+const { enforceRetailOpeningCoverage } = require('./services/retailOpeningCoverageEnforcement');
+const { assignRemainingHostsStep4 } = require('./services/remainingHostsAssignment');
+const { assignOverflowStaffStep5 } = require('./services/overflowStaffAssignment');
+const { assignBreakCoverStaff } = require('./services/breakCoverStaffAssignment');
+const { assignRemainingGenericStaff } = require('./services/flexibleStaffAssignment');
+const { analyzeBreakCoverageSmart } = require('./services/breakCoverageGapAnalysis');
 
 const { 
   timeToMinutes, 
@@ -76,14 +80,14 @@ const RETAIL_UNIT_PRIORITY = {
   'Lorikeets': 3
 };
 
-// ✅ Zone files mapping - Load from zone-data folder
+// âœ… Zone files mapping - Load from zone-data folder
 const ZONE_FILES = {
   'Central_Zone': path.join(__dirname, 'zone-data/Central_Zone.xlsx'),
   'Left_Zone': path.join(__dirname, 'zone-data/Left_Zone.xlsx'),
   'Right_Zone': path.join(__dirname, 'zone-data/Right_Zone.xlsx')
 };
 
-// ✅ Unit categories for grouping in UI
+// âœ… Unit categories for grouping in UI
 const UNIT_CATEGORIES = {
   'Rides': [
     // === NEXUS RIDES ===
@@ -152,7 +156,7 @@ function getCategoryFromUnit(unitName) {
   return 'Retail'; // Default fallback
 }
 
-// ✅ FIX #7: Staff who CANNOT be left alone - must be assigned a real position
+// âœ… FIX #7: Staff who CANNOT be left alone - must be assigned a real position
 // These staff must have a position assignment, never left unassigned/no matching position
 // Format: ['Staff Name 1', 'Staff Name 2', ...]
 const STAFF_CANNOT_BE_LEFT_ALONE = [
@@ -160,7 +164,7 @@ const STAFF_CANNOT_BE_LEFT_ALONE = [
   // Add more staff names here as needed
 ];
 
-// ✅ FIX #8: Critical units that need MINIMUM 2 staff (never leave one person alone)
+// âœ… FIX #8: Critical units that need MINIMUM 2 staff (never leave one person alone)
 // Entrances and busy shops should never have just 1 person
 const CRITICAL_UNITS_NEED_MINIMUM_2 = [
   'Lodge Entrance',
@@ -180,7 +184,7 @@ const UNITS_WITH_BREAK_COVER_NEEDED = [
   "Ben & Jerry's Kiosk"
 ];
 
-// ✅ V12: Snap to nearest hourly break slot
+// âœ… V12: Snap to nearest hourly break slot
 function snapToNearestHour(minutesSinceMidnight) {
   const HOURLY_SLOTS = [
     { start: '11:00', end: '11:45', startMin: 660, endMin: 705 },
@@ -198,13 +202,13 @@ function snapToNearestHour(minutesSinceMidnight) {
   return HOURLY_SLOTS[HOURLY_SLOTS.length - 1];
 }
 
-// ✅ V12: Validate if staff has skill for a unit
+// âœ… V12: Validate if staff has skill for a unit
 function hasSkillForUnit(staffName, targetUnit, skillsData) {
   const staff = skillsData.staffWithGreen.find(s => s.name === staffName);
   if (!staff) return false;
   const canonicalTargetUnit = canonicalizeUnitName(targetUnit);
   
-  // ✅ NEW: For Rides units, Rides T1 break cover can cover any ride
+  // âœ… NEW: For Rides units, Rides T1 break cover can cover any ride
   // Check if this is a Rides unit
   const category = getCategoryFromUnit(canonicalTargetUnit);
   if (category === 'Rides') {
@@ -218,7 +222,7 @@ function hasSkillForUnit(staffName, targetUnit, skillsData) {
     'Adventures Point Gift Shop': 'Adventure Point Gift Shop', 'Sweet Shop': 'Sweet Shop', 'Sealife': 'Sea Life', 'Lorikeets': 'Retail',
     'Car Parks - Staff Car Park': 'Car Parks', 'Car Parks - Hotel Car Park': 'Car Parks', 'Car Parks - Express': 'Car Parks',
     'Car Parks - Split': 'Car Parks', 'Car Parks - Flamingo': 'Car Parks', 'Car Parks - Giraffe': 'Car Parks', 'Car Parks - Gorilla': 'Car Parks',
-    // ✅ B&J requires the "Ben & Jerry's" skill column — NOT Lodge Kiosk
+    // âœ… B&J requires the "Ben & Jerry's" skill column â€” NOT Lodge Kiosk
     "Ben & Jerry's": "Ben & Jerry's",
     "Ben & Jerry's Kiosk": "Ben & Jerry's"
   };
@@ -226,7 +230,7 @@ function hasSkillForUnit(staffName, targetUnit, skillsData) {
   const requiredSkill = unitSkillMap[canonicalTargetUnit];
   if (!requiredSkill) return false;
   
-  // ✅ Handle both plain strings ("Ben & Jerry's-HOST") and objects ({fullSkill: "..."})
+  // âœ… Handle both plain strings ("Ben & Jerry's-HOST") and objects ({fullSkill: "..."})
   return (staff.greenUnits || []).some(skill => {
     if (!skill) return false;
     const skillStr = typeof skill === 'string' ? skill : (skill.fullSkill || '');
@@ -234,7 +238,7 @@ function hasSkillForUnit(staffName, targetUnit, skillsData) {
   });
 }
 
-// ✅ V12: Get position name for a unit
+// âœ… V12: Get position name for a unit
 function getPositionForUnit(unit) {
   const canonicalUnit = canonicalizeUnitName(unit);
   const positionMap = {
@@ -245,9 +249,9 @@ function getPositionForUnit(unit) {
   return positionMap[canonicalUnit] || `${canonicalUnit} Host`;
 }
 
-// ✅ V12: Stagger breaks to prevent same-unit simultaneous breaks
+// âœ… V12: Stagger breaks to prevent same-unit simultaneous breaks
 function staggerBreaksByUnit(allAssignments) {
-  console.log(`\n🔄 Applying Break Staggering Logic...`);
+  console.log(`\nðŸ”„ Applying Break Staggering Logic...`);
   const unitBreaks = {};
   const unitStaffCount = {};
   
@@ -280,12 +284,12 @@ function staggerBreaksByUnit(allAssignments) {
     const totalStaff = unitStaffCount[unit] || 1;
     const totalBreaks = breaks.length;
     
-    console.log(`  📊 ${unit}: ${totalStaff} staff, ${totalBreaks} breaks to stagger`);
+    console.log(`  ðŸ“Š ${unit}: ${totalStaff} staff, ${totalBreaks} breaks to stagger`);
     
-    // ✅ CRITICAL: If all staff at a unit need breaks, we MUST stagger them
+    // âœ… CRITICAL: If all staff at a unit need breaks, we MUST stagger them
     // Otherwise the unit will be left empty
     if (totalBreaks >= totalStaff) {
-      console.log(`  ⚠️  ${unit}: All/most staff need breaks - forcing stagger`);
+      console.log(`  âš ï¸  ${unit}: All/most staff need breaks - forcing stagger`);
       
       // Sort breaks by original time
       breaks.sort((a, b) => a.startMin - b.startMin);
@@ -299,12 +303,12 @@ function staggerBreaksByUnit(allAssignments) {
         if (currentBreak.startMin !== newSlot) {
           const slotTime = minutesToTime(newSlot);
           const endSlotTime = minutesToTime(newSlot + 30); // 30min breaks
-          console.log(`  🔄 ${currentBreak.staff}: ${currentBreak.startTime}-${currentBreak.endTime} → ${slotTime}-${endSlotTime}`);
+          console.log(`  ðŸ”„ ${currentBreak.staff}: ${currentBreak.startTime}-${currentBreak.endTime} â†’ ${slotTime}-${endSlotTime}`);
           adjustedAssignments[currentBreak.index].startTime = slotTime;
           adjustedAssignments[currentBreak.index].endTime = endSlotTime;
         }
       }
-      console.log(`  ✅ ${unit}: Breaks staggered across ${breaks.length} slots`);
+      console.log(`  âœ… ${unit}: Breaks staggered across ${breaks.length} slots`);
       continue;
     }
     
@@ -330,7 +334,7 @@ function staggerBreaksByUnit(allAssignments) {
         if (newSlot) {
           const slotTime = minutesToTime(newSlot);
           const endSlotTime = minutesToTime(newSlot + 30);
-          console.log(`  🔄 ${currentBreak.staff} (${unit}): ${currentBreak.startTime}-${currentBreak.endTime} → ${slotTime}-${endSlotTime}`);
+          console.log(`  ðŸ”„ ${currentBreak.staff} (${unit}): ${currentBreak.startTime}-${currentBreak.endTime} â†’ ${slotTime}-${endSlotTime}`);
           adjustedAssignments[currentBreak.index].startTime = slotTime;
           adjustedAssignments[currentBreak.index].endTime = endSlotTime;
           usedSlots.add(newSlot);
@@ -339,13 +343,13 @@ function staggerBreaksByUnit(allAssignments) {
         usedSlots.add(currentBreak.startMin);
       }
     }
-    console.log(`  ✅ ${unit}: Breaks staggered (${breaks.length} staff)`);
+    console.log(`  âœ… ${unit}: Breaks staggered (${breaks.length} staff)`);
   }
   
   return adjustedAssignments;
 }
 
-// ✅ V7.9: Smart Position Matching Function
+// âœ… V7.9: Smart Position Matching Function
 function matchPositionToSkill(zonePosition) {
   if (!zonePosition) return null;
   
@@ -379,7 +383,7 @@ function normalizeRideName(name) {
     .trim();
 }
 
-// ✅ V8.4: Check if staff has SPECIFIC unit skill (not generic)
+// âœ… V8.4: Check if staff has SPECIFIC unit skill (not generic)
 function hasSpecificUnitSkill(staff, unitName) {
   if (!staff.greenUnits || staff.greenUnits.length === 0) {
     return false;
@@ -398,7 +402,7 @@ function hasSpecificUnitSkill(staff, unitName) {
   return false;
 }
 
-// ✅ V10.1: Get all specific units/rides a staff member is trained on
+// âœ… V10.1: Get all specific units/rides a staff member is trained on
 function getStaffTrainedUnits(staff) {
   if (!staff.greenUnits || staff.greenUnits.length === 0) {
     return [];
@@ -424,13 +428,13 @@ function getStaffTrainedUnits(staff) {
   return trainedUnits;
 }
 
-// ✅ V10.0: Check for generic skill matches with proper precedence
+// âœ… V10.0: Check for generic skill matches with proper precedence
 function getGenericSkillMatch(unitName, requiredPosition) {
   const unitLower = unitName.toLowerCase();
   const canonicalUnit = canonicalizeUnitName(unitName);
   const skillType = matchPositionToSkill(requiredPosition);
   
-  // ✅ CAR PARKS FIRST - Must check before schools to avoid confusion
+  // âœ… CAR PARKS FIRST - Must check before schools to avoid confusion
   if (unitLower.includes('car park') || unitLower.includes('car parks')) {
     return `Car Parks Skill-${skillType}`;
   }
@@ -481,7 +485,7 @@ function getGenericSkillMatch(unitName, requiredPosition) {
   return null;
 }
 
-// ✅ V7.11: Staff skill checking with generic support
+// âœ… V7.11: Staff skill checking with generic support
 function staffHasSkill(staff, unitName, requiredPosition) {
   if (!staff.greenUnits || staff.greenUnits.length === 0) {
     return false;
@@ -518,33 +522,33 @@ function staffHasSkill(staff, unitName, requiredPosition) {
   return false;
 }
 
-// ✅ V10.0: Parse Closed Days sheet from zone file (now from folder!)
+// âœ… V10.0: Parse Closed Days sheet from zone file (now from folder!)
 function getClosedDaysStatus(zoneFilePath, date, dayCode) {
   try {
-    console.log(`📖 Reading Closed Days from: ${zoneFilePath}`);
+    console.log(`ðŸ“– Reading Closed Days from: ${zoneFilePath}`);
     
     if (!fs.existsSync(zoneFilePath)) {
-      console.error(`❌ Zone file not found: ${zoneFilePath}`);
+      console.error(`âŒ Zone file not found: ${zoneFilePath}`);
       return {};
     }
     
     const wb = XLSX.readFile(zoneFilePath, { data_only: true });
     
     if (!wb.SheetNames.includes('Closed Days')) {
-      console.log('⚠️  Closed Days sheet not found, defaulting all units to open');
+      console.log('âš ï¸  Closed Days sheet not found, defaulting all units to open');
       return {};
     }
     
     const ws = wb.Sheets['Closed Days'];
     const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
     
-    console.log(`📄 Closed Days sheet has ${data.length} rows`);
+    console.log(`ðŸ“„ Closed Days sheet has ${data.length} rows`);
     
     // Row 3 (index 2) contains headers with unit names starting from column I (index 8)
     const headers = data[2];
     
     if (!headers) {
-      console.error('❌ Headers row not found in Closed Days sheet');
+      console.error('âŒ Headers row not found in Closed Days sheet');
       return {};
     }
     
@@ -561,12 +565,12 @@ function getClosedDaysStatus(zoneFilePath, date, dayCode) {
         
         // If it's a string like "Sat 14 - 02 - 26", parse it
         if (typeof rowDate === 'string') {
-          // Format: "Day DD - MM - YY" → extract DD, MM, YY
+          // Format: "Day DD - MM - YY" â†’ extract DD, MM, YY
           const match = rowDate.match(/(\d{1,2})\s*-\s*(\d{1,2})\s*-\s*(\d{2})/);
           if (match) {
             const day = match[1].padStart(2, '0');
             const month = match[2].padStart(2, '0');
-            const year = '20' + match[3]; // 25 → 2025, 26 → 2026
+            const year = '20' + match[3]; // 25 â†’ 2025, 26 â†’ 2026
             rowDateStr = `${year}-${month}-${day}`;
           }
         } else if (rowDate instanceof Date) {
@@ -578,14 +582,14 @@ function getClosedDaysStatus(zoneFilePath, date, dayCode) {
         
         if (rowDateStr === date) {
           targetRow = row;
-          console.log(`✅ Found matching date row: ${date} (matched: ${rowDateStr})`);
+          console.log(`âœ… Found matching date row: ${date} (matched: ${rowDateStr})`);
           break;
         }
       }
     }
     
     if (!targetRow) {
-      console.log(`⚠️  No matching date found in Closed Days for ${date}`);
+      console.log(`âš ï¸  No matching date found in Closed Days for ${date}`);
       return {};
     }
     
@@ -599,16 +603,16 @@ function getClosedDaysStatus(zoneFilePath, date, dayCode) {
       }
     }
     
-    console.log(`📊 Closed Days status loaded: ${Object.keys(statusMap).length} units`);
+    console.log(`ðŸ“Š Closed Days status loaded: ${Object.keys(statusMap).length} units`);
     return statusMap;
   } catch (error) {
-    console.error('❌ Error parsing Closed Days sheet:', error);
+    console.error('âŒ Error parsing Closed Days sheet:', error);
     return {};
   }
 }
 
-// ✅ V10.0: Get all units with category grouping and Closed Days defaults
-// ✨ FIXED: Now dynamically reads units from zone file instead of hardcoded categories
+// âœ… V10.0: Get all units with category grouping and Closed Days defaults
+// âœ¨ FIXED: Now dynamically reads units from zone file instead of hardcoded categories
 function getUnitsWithStatus(zoneFilePath, date, dayCode) {
   const closedDaysStatus = getClosedDaysStatus(zoneFilePath, date, dayCode);
   
@@ -626,7 +630,7 @@ function getUnitsWithStatus(zoneFilePath, date, dayCode) {
   };
   
   for (const unitName of allUnits) {
-    // ✅ Use UNIT_CATEGORIES constant for accurate categorization
+    // âœ… Use UNIT_CATEGORIES constant for accurate categorization
     let category = 'Retail'; // Default fallback
     
     // Check each category in UNIT_CATEGORIES for exact match
@@ -659,7 +663,7 @@ function getUnitsWithStatus(zoneFilePath, date, dayCode) {
 
 app.use(express.json());
 
-// ✅ Get available zones
+// âœ… Get available zones
 app.get('/api/zones', (req, res) => {
   try {
     const zones = Object.keys(ZONE_FILES).map(zone => ({
@@ -673,7 +677,7 @@ app.get('/api/zones', (req, res) => {
   }
 });
 
-// ✅ Get day codes for a specific zone
+// âœ… Get day codes for a specific zone
 app.post('/api/day-codes-for-zone', express.json(), (req, res) => {
   try {
     const { zone } = req.body;
@@ -700,12 +704,12 @@ app.post('/api/day-codes-for-zone', express.json(), (req, res) => {
   }
 });
 
-// ✅ V10.0 NEW: Get unit status with defaults from Closed Days (now from folder!)
+// âœ… V10.0 NEW: Get unit status with defaults from Closed Days (now from folder!)
 app.post('/api/get-unit-status', express.json(), (req, res) => {
   try {
     const { zone, date, dayCode } = req.body;
     
-    console.log(`\n🔍 API /get-unit-status called with:`);
+    console.log(`\nðŸ” API /get-unit-status called with:`);
     console.log(`   Zone: ${zone}`);
     console.log(`   Date: ${date}`);
     console.log(`   Day Code: ${dayCode}`);
@@ -719,16 +723,16 @@ app.post('/api/get-unit-status', express.json(), (req, res) => {
     }
     
     const zoneFilePath = ZONE_FILES[zone];
-    console.log(`📂 Using zone file: ${zoneFilePath}`);
+    console.log(`ðŸ“‚ Using zone file: ${zoneFilePath}`);
     
     if (!fs.existsSync(zoneFilePath)) {
       return res.status(400).json({ error: `Zone file not found: ${zone}` });
     }
     
-    console.log(`\n🔄 Getting unit status for ${zone}...`);
+    console.log(`\nðŸ”„ Getting unit status for ${zone}...`);
     const units = getUnitsWithStatus(zoneFilePath, date, dayCode);
     
-    console.log(`✅ Returning units for zone ${zone}:`);
+    console.log(`âœ… Returning units for zone ${zone}:`);
     console.log(`   Categories: ${Object.keys(units).join(', ')}`);
     Object.entries(units).forEach(([category, unitList]) => {
       console.log(`   ${category}: ${unitList.map(u => u.name).join(', ')}`);
@@ -747,11 +751,11 @@ app.post('/api/get-unit-status', express.json(), (req, res) => {
   }
 });
 
-// ✅ Parse and analyze (SIMPLIFIED - no CWOA upload!)
+// âœ… Parse and analyze (SIMPLIFIED - no CWOA upload!)
 app.post('/api/parse-and-analyze', upload.fields([
   { name: 'skillsMatrix', maxCount: 1 },
   { name: 'timegripCsv', maxCount: 1 }
-  // ✅ V10.0: No allocationTemplate, no cwoaFile!
+  // âœ… V10.0: No allocationTemplate, no cwoaFile!
 ]), async (req, res) => {
   try {
     const { teamName, zone, dayCode, date } = req.body;
@@ -781,7 +785,7 @@ app.post('/api/parse-and-analyze', upload.fields([
     const staffingRequirements = zoneData.staffingRequirements[dayCode] || [];
     const dayCodeInfo = zoneData.dayCodeOptions.find(dc => dc.code === dayCode);
     
-    console.log(`📊 Staffing requirements for ${zone} - Day Code ${dayCode}:`);
+    console.log(`ðŸ“Š Staffing requirements for ${zone} - Day Code ${dayCode}:`);
     staffingRequirements.forEach(req => {
       console.log(`  ${req.unitName} (${req.position}): ${req.staffNeeded} staff needed`);
     });
@@ -822,7 +826,7 @@ function calculateWorkHours(startTime, endTime, breakMinutes) {
   return workMinutes / 60;
 }
 
-// ✅ NEW VERSION (returns Set of staff names)
+// âœ… NEW VERSION (returns Set of staff names)
 function detectBriefingStaff(assignedStaff) {
   const briefingAttendees = new Set();
   
@@ -842,45 +846,45 @@ function getPreferredBreakSlot(assignment, breakSlots, allAssignments) {
   const endMinutes = timeToMinutes(endTime);
   const isSeniorHost = assignment.position && assignment.position.includes('Senior Host');
 
-  // ✅ SAFETY: find the latest slot that still ends at least 30 mins before shift end
+  // âœ… SAFETY: find the latest slot that still ends at least 30 mins before shift end
   // This prevents breaks being assigned so late the person can't finish work
   const latestSafeSlotStart = endMinutes - 75; // break (45min) + 30min buffer
 
-  // Priority 1: SHORT SHIFTS (end ≤15:00) → 11:00 ALWAYS
+  // Priority 1: SHORT SHIFTS (end â‰¤15:00) â†’ 11:00 ALWAYS
   // Catches Sienna (13:45), Callum (14:45), Freddie (14:45), Will (13:45)
   if (endMinutes <= 900) { // 15:00 = 900 minutes
-    console.log(`   🕐 ${assignment.staff || 'Staff'}: Early closer (ends ${endTime}) → 11:00 break`);
+    console.log(`   ðŸ• ${assignment.staff || 'Staff'}: Early closer (ends ${endTime}) â†’ 11:00 break`);
     return breakSlots[0]; // 11:00
   }
   
-  // Priority 2: SENIOR HOSTS → 12:00+ (NEVER 11:00)
+  // Priority 2: SENIOR HOSTS â†’ 12:00+ (NEVER 11:00)
   if (isSeniorHost) {
-    console.log(`   👔 ${assignment.staff || 'Staff'}: Senior Host → 12:00+ break`);
+    console.log(`   ðŸ‘” ${assignment.staff || 'Staff'}: Senior Host â†’ 12:00+ break`);
     return breakSlots[1]; // 12:00
   }
   
-  // Priority 3: EARLY STARTERS (before 09:00) → 11:00
+  // Priority 3: EARLY STARTERS (before 09:00) â†’ 11:00
   if (startMinutes < 540) {
-    console.log(`   🌅 ${assignment.staff || 'Staff'}: Early starter (${startTime}) → 11:00 break`);
+    console.log(`   ðŸŒ… ${assignment.staff || 'Staff'}: Early starter (${startTime}) â†’ 11:00 break`);
     return breakSlots[0]; // 11:00
   }
   
-  // Priority 4: MID-SHIFT STARTERS (09:00-10:45) → 12:00
+  // Priority 4: MID-SHIFT STARTERS (09:00-10:45) â†’ 12:00
   if (startMinutes >= 540 && startMinutes < 645) {
-    console.log(`   🕐 ${assignment.staff || 'Staff'}: Mid-shift starter (${startTime}) → 12:00 break`);
+    console.log(`   ðŸ• ${assignment.staff || 'Staff'}: Mid-shift starter (${startTime}) â†’ 12:00 break`);
     return breakSlots[1]; // 12:00
   }
   
-  // Priority 5: LATE STARTERS (11:00+) → 14:00, cascade to 15:00
+  // Priority 5: LATE STARTERS (11:00+) â†’ 14:00, cascade to 15:00
   if (startMinutes >= 660) {
-    console.log(`   ⏰ ${assignment.staff || 'Staff'}: Late starter (${startTime}) → 14:00 break`);
+    console.log(`   â° ${assignment.staff || 'Staff'}: Late starter (${startTime}) â†’ 14:00 break`);
     return breakSlots[3]; // 14:00
   }
   
   return breakSlots[0]; // Default: 11:00
 }
 function getAllParkUnits() {
-  console.log('\n🌐 Loading park-wide unit status...');
+  console.log('\nðŸŒ Loading park-wide unit status...');
   
   const allUnits = {
     rides: new Set(),
@@ -915,9 +919,9 @@ function getAllParkUnits() {
         }
       }
       
-      console.log(`   ✅ Loaded ${zoneName}`);
+      console.log(`   âœ… Loaded ${zoneName}`);
     } catch (error) {
-      console.error(`   ❌ Error loading ${zoneName}:`, error.message);
+      console.error(`   âŒ Error loading ${zoneName}:`, error.message);
     }
   }
   
@@ -927,17 +931,17 @@ function getAllParkUnits() {
     admissions: Array.from(allUnits.admissions).sort()
   };
   
-  console.log(`\n📊 Park-wide: ${result.rides.length} rides, ${result.retail.length} retail`);
+  console.log(`\nðŸ“Š Park-wide: ${result.rides.length} rides, ${result.retail.length} retail`);
   return result;
 }
 
 function assignBreakCover(breakCoverStaff, regularStaff, breaksNeeded) {
   if (!breakCoverStaff || breakCoverStaff.length === 0) {
-    console.log('\n⚠️  No break cover staff detected');
+    console.log('\nâš ï¸  No break cover staff detected');
     return [];
   }
   
-  console.log(`\n🔄 Assigning ${breakCoverStaff.length} break cover staff...`);
+  console.log(`\nðŸ”„ Assigning ${breakCoverStaff.length} break cover staff...`);
   
   const unitCounts = {};
   for (const staff of regularStaff.filter(s => s.category === 'Retail' || s.category === 'Admissions')) {
@@ -952,7 +956,7 @@ function assignBreakCover(breakCoverStaff, regularStaff, breaksNeeded) {
       return unitCounts[b] - unitCounts[a];
     });
   
-  console.log(`   📍 Top: ${priorityUnits.slice(0, 3).join(', ')}`);
+  console.log(`   ðŸ“ Top: ${priorityUnits.slice(0, 3).join(', ')}`);
   
   const assignments = [];
   
@@ -971,7 +975,7 @@ function assignBreakCover(breakCoverStaff, regularStaff, breaksNeeded) {
       category: 'Retail'
     });
     
-    console.log(`   ✅ ${stationaryStaff.name}: ${stationaryUnit} (STATIONARY)`);
+    console.log(`   âœ… ${stationaryStaff.name}: ${stationaryUnit} (STATIONARY)`);
   }
   
   if (priorityUnits.length > 1 && breakCoverStaff[1]) {
@@ -1008,20 +1012,20 @@ function assignBreakCover(breakCoverStaff, regularStaff, breaksNeeded) {
         category: 'Retail'
       });
       
-      console.log(`   ✅ ${rotatingStaff.name}: ROTATING`);
-      console.log(`      → ${earlyBreak.unit} (11:00-11:30)`);
-      console.log(`      → ${criticalEntrance} (11:45-15:00)`);
+      console.log(`   âœ… ${rotatingStaff.name}: ROTATING`);
+      console.log(`      â†’ ${earlyBreak.unit} (11:00-11:30)`);
+      console.log(`      â†’ ${criticalEntrance} (11:45-15:00)`);
     }
   }
   
   return assignments;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 🎯 SMART BREAK COVER SYSTEM V1.0
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ðŸŽ¯ SMART BREAK COVER SYSTEM V1.0
 // Intelligently assigns break covers to specific units with early breaks for
 // single-coverage units (Sealife, Lorikeets) so covers can help elsewhere after
-// ═══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function identifySingleCoverageUnits(assignments) {
   // Count how many staff are assigned to each retail/admissions unit
@@ -1051,7 +1055,7 @@ function identifySingleCoverageUnits(assignments) {
     }
   }
   
-  console.log(`\n🔍 Single-Coverage Units Analysis:`);
+  console.log(`\nðŸ” Single-Coverage Units Analysis:`);
   console.log(`   Total retail/admissions units: ${unitStaffCount.size}`);
   console.log(`   Single-coverage units (1 person): ${singleCoverageUnits.length}`);
   if (singleCoverageUnits.length > 0) {
@@ -1062,9 +1066,9 @@ function identifySingleCoverageUnits(assignments) {
 }
 
 function assignSmartBreakCover(assignments, breakAssignments, breakCoverStaff, timegripData, skillsData) {
-  console.log(`\n═══════════════════════════════════════════════════════════`);
-  console.log(`🎯 SMART BREAK COVER SYSTEM V1.0`);
-  console.log(`═══════════════════════════════════════════════════════════`);
+  console.log(`\nâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•`);
+  console.log(`ðŸŽ¯ SMART BREAK COVER SYSTEM V1.0`);
+  console.log(`â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•`);
   
   const smartAssignments = [];
   const busyWindows = new Map(); // Track which BC staff are busy when
@@ -1072,12 +1076,12 @@ function assignSmartBreakCover(assignments, breakAssignments, breakCoverStaff, t
   // Step 1: Identify single-coverage units
   const { singleCoverageUnits, unitStaffCount } = identifySingleCoverageUnits(assignments);
   
-  console.log(`\n📊 Break Coverage Analysis:`);
+  console.log(`\nðŸ“Š Break Coverage Analysis:`);
   console.log(`   Total breaks to cover: ${breakAssignments.length}`);
   console.log(`   Available break cover staff: ${breakCoverStaff.length}`);
   
   // Step 2: Handle single-coverage units - assign breaks when BC staff arrive
-  console.log(`\n🎯 Phase 1: Single-Coverage Units (Breaks When BC Available)`);
+  console.log(`\nðŸŽ¯ Phase 1: Single-Coverage Units (Breaks When BC Available)`);
   
   for (const unit of singleCoverageUnits) {
     // Find breaks for this unit
@@ -1106,7 +1110,7 @@ function assignSmartBreakCover(assignments, breakAssignments, breakCoverStaff, t
       // Get BC staff's actual arrival time
       const bcHours = getStaffWorkingHours(matchingBC.name, timegripData);
       if (!bcHours) {
-        console.log(`   ⚠️  ${unit}: Could not find working hours for ${matchingBC.name}`);
+        console.log(`   âš ï¸  ${unit}: Could not find working hours for ${matchingBC.name}`);
         continue;
       }
       
@@ -1119,7 +1123,7 @@ function assignSmartBreakCover(assignments, breakAssignments, breakCoverStaff, t
       const availableSlot = breakSlots.find(slot => slot >= bcArrivalMinutes);
       
       if (!availableSlot) {
-        console.log(`   ⚠️  ${unit}: BC arrives too late (${bcHours.startTime}) for any break slot`);
+        console.log(`   âš ï¸  ${unit}: BC arrives too late (${bcHours.startTime}) for any break slot`);
         continue;
       }
       
@@ -1156,14 +1160,14 @@ function assignSmartBreakCover(assignments, breakAssignments, breakCoverStaff, t
       if (!busyWindows.has(matchingBC.name)) busyWindows.set(matchingBC.name, []);
       busyWindows.get(matchingBC.name).push({ start: newStartMinutes, end: newEndMinutes });
       
-      console.log(`   ✅ ${matchingBC.name} → ${unit} (${newStartTime}-${newEndTime}) [covers ${breakToMove.staff}]`);
+      console.log(`   âœ… ${matchingBC.name} â†’ ${unit} (${newStartTime}-${newEndTime}) [covers ${breakToMove.staff}]`);
     } else {
-      console.log(`   ⚠️  ${unit}: No matching break cover available`);
+      console.log(`   âš ï¸  ${unit}: No matching break cover available`);
     }
   }
   
   // Step 3: Handle remaining breaks with available BC time
-  console.log(`\n🎯 Phase 2: Multi-Person Units (Standard Break Coverage)`);
+  console.log(`\nðŸŽ¯ Phase 2: Multi-Person Units (Standard Break Coverage)`);
   
   const sortedBreaks = [...breakAssignments].sort((a, b) => 
     timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
@@ -1188,7 +1192,7 @@ function assignSmartBreakCover(assignments, breakAssignments, breakCoverStaff, t
     );
     
     if (staffPresentDuringBreak.length >= 2) {
-      console.log(`  ✅ ${breakNeeded.unit}: Already has ${staffPresentDuringBreak.length} staff present during ${breakNeeded.staff}'s break (no BC needed)`);
+      console.log(`  âœ… ${breakNeeded.unit}: Already has ${staffPresentDuringBreak.length} staff present during ${breakNeeded.staff}'s break (no BC needed)`);
       continue;
     }
     
@@ -1238,13 +1242,13 @@ function assignSmartBreakCover(assignments, breakAssignments, breakCoverStaff, t
         isSmartBreakCover: true
       });
       
-      console.log(`  ✅ ${matchingBC.name} → ${breakNeeded.unit} (${breakNeeded.startTime}-${breakNeeded.endTime}) covers ${breakNeeded.staff}'s break`);
+      console.log(`  âœ… ${matchingBC.name} â†’ ${breakNeeded.unit} (${breakNeeded.startTime}-${breakNeeded.endTime}) covers ${breakNeeded.staff}'s break`);
     } else {
-      console.log(`  ⚠️  ${breakNeeded.unit}: No break cover available for ${breakNeeded.staff}'s break (${breakNeeded.startTime}-${breakNeeded.endTime})`);
+      console.log(`  âš ï¸  ${breakNeeded.unit}: No break cover available for ${breakNeeded.staff}'s break (${breakNeeded.startTime}-${breakNeeded.endTime})`);
     }
   }
   
-  console.log(`\n📊 Smart Break Cover Summary:`);
+  console.log(`\nðŸ“Š Smart Break Cover Summary:`);
   console.log(`   Total break cover assignments: ${smartAssignments.length}`);
   console.log(`   Single-coverage units (10:30 breaks): ${smartAssignments.filter(a => a.isSingleCoverage).length}`);
   console.log(`   Multi-person unit coverage: ${smartAssignments.filter(a => !a.isSingleCoverage).length}`);
@@ -1252,14 +1256,14 @@ function assignSmartBreakCover(assignments, breakAssignments, breakCoverStaff, t
   return smartAssignments;
 }
 
-console.log('✅ BUG #15 functions loaded!');
+console.log('âœ… BUG #15 functions loaded!');
 
 // ============================================================================
 // BUG #15: UPDATED - Calculate breaks with STAGGERED TIMING
 // ============================================================================
 
 function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
-  console.log('\n🕐 Calculating staggered break schedule...');
+  console.log('\nðŸ• Calculating staggered break schedule...');
   
   const breakAssignments = [];
   const staffAssignments = new Map();
@@ -1274,14 +1278,14 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
     staffAssignments.get(assignment.staff).push(assignment);
   }
   
-  // ✅ Count how many staff will need breaks (to size break slots appropriately)
+  // âœ… Count how many staff will need breaks (to size break slots appropriately)
   let nonRidesStaffCount = 0;
   for (const [staffName, assignments] of staffAssignments.entries()) {
     const sorted = assignments.sort((a, b) => 
       timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
     );
     const primaryAssignment = sorted[0];
-    const breakMinutes = Math.max(...sorted.map(a => a.breakMinutes || 0)); // ✅ Use MAX for split-shift staff
+    const breakMinutes = Math.max(...sorted.map(a => a.breakMinutes || 0)); // âœ… Use MAX for split-shift staff
     const shiftStart = sorted[0].startTime;
     const shiftEnd = sorted[sorted.length - 1].endTime;
     const workHours = calculateWorkHours(shiftStart, shiftEnd, breakMinutes || 0);
@@ -1292,7 +1296,7 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
     }
   }
   
-  // ✅ Create DYNAMIC break slots sized to accommodate all non-rides staff
+  // âœ… Create DYNAMIC break slots sized to accommodate all non-rides staff
   // Distribute evenly across 5 time slots (11:00, 12:00, 13:00, 14:00, 15:00)
   const slotsPerTime = Math.ceil(nonRidesStaffCount / 5);
   const breakSlots = [
@@ -1303,10 +1307,10 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
     { start: '15:00', end: '15:30', capacity: Math.max(slotsPerTime, 2), assigned: [], label: 'Latest' }
   ];
   
-  console.log(`   📊 Creating break slots for ${nonRidesStaffCount} non-rides staff (${slotsPerTime} per time slot)`);
+  console.log(`   ðŸ“Š Creating break slots for ${nonRidesStaffCount} non-rides staff (${slotsPerTime} per time slot)`);
 
   
-  // ✅ Collect rides staff for staggered breaks starting at 11:00
+  // âœ… Collect rides staff for staggered breaks starting at 11:00
   const ridesBreaksToAssign = [];
   
   // Calculate breaks for each staff member
@@ -1318,30 +1322,30 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
     const shiftStart = sorted[0].startTime;
     const shiftEnd = sorted[sorted.length - 1].endTime;
     const primaryAssignment = sorted[0];
-    const breakMinutes = Math.max(...sorted.map(a => a.breakMinutes || 0)); // ✅ Use MAX for split-shift staff
+    const breakMinutes = Math.max(...sorted.map(a => a.breakMinutes || 0)); // âœ… Use MAX for split-shift staff
     
     // Skip if no break OR break cover staff
-    // ✅ EXCEPTION: Senior Hosts ALWAYS get 45-min breaks, even if breakMinutes is 0
+    // âœ… EXCEPTION: Senior Hosts ALWAYS get 45-min breaks, even if breakMinutes is 0
     const isSeniorHost = primaryAssignment.position && primaryAssignment.position.includes('Senior Host');
     if ((!breakMinutes || breakMinutes === 0) && !isSeniorHost) {
       if (primaryAssignment.isBreakCover) {
-        console.log(`   🔄 ${staffName}: Break Cover (no personal break)`);
+        console.log(`   ðŸ”„ ${staffName}: Break Cover (no personal break)`);
       }
       continue;
     }
     
-    // ✅ Force 45-minute breaks for Senior Hosts if not set
+    // âœ… Force 45-minute breaks for Senior Hosts if not set
     const actualBreakMinutes = isSeniorHost && (!breakMinutes || breakMinutes === 0) ? 45 : breakMinutes;
     
     if (primaryAssignment.isBreakCover) {
-      console.log(`   🔄 ${staffName}: Break Cover (no personal break)`);
+      console.log(`   ðŸ”„ ${staffName}: Break Cover (no personal break)`);
       continue;
     }
     
-    // ✅ BUG #15: Check if shift < 4 hours (no break required)
+    // âœ… BUG #15: Check if shift < 4 hours (no break required)
     const workHours = calculateWorkHours(shiftStart, shiftEnd, actualBreakMinutes);
     if (workHours < 4.0 && !isSeniorHost) {  // Senior Hosts always get breaks
-      console.log(`   ⏭️  ${staffName}: ${workHours.toFixed(2)}h shift (no break required)`);
+      console.log(`   â­ï¸  ${staffName}: ${workHours.toFixed(2)}h shift (no break required)`);
       continue;
     }
     
@@ -1362,13 +1366,13 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
       // NON-RIDES: Use PRIORITY-FIRST THEN UNIT-AWARE STAGGERED break slots
       const unit = primaryAssignment.unit;
       
-      // ✅ FIX: ALWAYS check priority system FIRST
-      // Priority 1: Short-shift staff (≤14:00) → 11:00
-      // Priority 2: Senior Hosts → 12:00/13:00/14:00 (NEVER 11:00)
-      // Priority 3: Late starters (≥11:00) → 14:00/15:00 (NOT 15:00 for 09:30 starters!)
+      // âœ… FIX: ALWAYS check priority system FIRST
+      // Priority 1: Short-shift staff (â‰¤14:00) â†’ 11:00
+      // Priority 2: Senior Hosts â†’ 12:00/13:00/14:00 (NEVER 11:00)
+      // Priority 3: Late starters (â‰¥11:00) â†’ 14:00/15:00 (NOT 15:00 for 09:30 starters!)
       let targetSlot = getPreferredBreakSlot(primaryAssignment, breakSlots, assignmentsToProcess);
       
-      // ✅ SMART STAGGERING: Category-aware + slot capacity
+      // âœ… SMART STAGGERING: Category-aware + slot capacity
       const category = primaryAssignment.category;
 
       const shiftStartMin2 = timeToMinutes(primaryAssignment.startTime || '09:00');
@@ -1376,13 +1380,13 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
       const isLateStarter  = shiftStartMin2 >= 660;
       const isMidStarter   = !isEarlyStarter && !isLateStarter;
 
-      // ✅ AZTECA OVERRIDE: Force 11:00 for 08:30 starters at Azteca
+      // âœ… AZTECA OVERRIDE: Force 11:00 for 08:30 starters at Azteca
       if (primaryAssignment.unit === 'Azteca Entrance' && isEarlyStarter) {
         targetSlot = breakSlots[0];
-        console.log(`   🏛️  ${staffName}: Azteca Entrance → forced 11:00 break`);
+        console.log(`   ðŸ›ï¸  ${staffName}: Azteca Entrance â†’ forced 11:00 break`);
       } else {
 
-      // ✅ 2-PERSON UNIT HANDLING: bypass category cascade, use unit stagger only
+      // âœ… 2-PERSON UNIT HANDLING: bypass category cascade, use unit stagger only
       // This guarantees Supplies/Sealife get 12:00 + 13:00 not both 14:00
       const unitForCheck = primaryAssignment.unit;
       const unitTotal = assignmentsToProcess.filter(a => a.unit === unitForCheck && !a.isBreakCover && !a.isBreak).length;
@@ -1400,7 +1404,7 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
             const ns = breakSlots[i];
             const sameUnitNext = ns.assigned.filter(s => { const a = assignmentsToProcess.find(x => x.staff === s); return a && a.unit === unitForCheck; }).length;
             if (sameUnitNext === 0) {
-              console.log(`   🏪 ${staffName}: 2-person unit stagger (${unitForCheck}), moving ${targetSlot.start} → ${ns.start}`);
+              console.log(`   ðŸª ${staffName}: 2-person unit stagger (${unitForCheck}), moving ${targetSlot.start} â†’ ${ns.start}`);
               targetSlot = ns; break;
             }
           }
@@ -1424,12 +1428,12 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
         const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020;
         for (let i = curIdx + 1; i < breakSlots.length; i++) {
           const ns = breakSlots[i]; const nsMin = timeToMinutes(ns.start);
-          if (isEarlyStarter && nsMin > 780) { targetSlot = breakSlots[2]; console.log(`   🌅 ${staffName}: Early starter cascade capped at 13:00`); break; }
-          if (isMidStarter  && nsMin > 840) { targetSlot = breakSlots[3]; console.log(`   🕐 ${staffName}: Mid-starter cascade capped at 14:00`); break; }
+          if (isEarlyStarter && nsMin > 780) { targetSlot = breakSlots[2]; console.log(`   ðŸŒ… ${staffName}: Early starter cascade capped at 13:00`); break; }
+          if (isMidStarter  && nsMin > 840) { targetSlot = breakSlots[3]; console.log(`   ðŸ• ${staffName}: Mid-starter cascade capped at 14:00`); break; }
           if (isEarlyClose && ns.start === '15:00') continue;
           const sameCatNext = ns.assigned.filter(s => { const a = assignmentsToProcess.find(x => x.staff === s); return a && a.category === category; }).length;
           if (sameCatNext < maxForCategory && ns.assigned.length < ns.capacity) {
-            console.log(`   🔄 ${staffName}: ${sameCategoryInSlot} ${category} already at ${targetSlot.start}, moving to ${ns.start}`);
+            console.log(`   ðŸ”„ ${staffName}: ${sameCategoryInSlot} ${category} already at ${targetSlot.start}, moving to ${ns.start}`);
             targetSlot = ns; break;
           }
         }
@@ -1445,31 +1449,31 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
           if (isMidStarter  && nsMin > 840) { targetSlot = breakSlots[3]; break; }
           if (isEarlyClose && breakSlots[i].start === '15:00') continue;
           if (breakSlots[i].assigned.length < breakSlots[i].capacity) {
-            console.log(`   🔄 ${staffName}: Slot ${targetSlot.start} full, moving to ${breakSlots[i].start}`);
+            console.log(`   ðŸ”„ ${staffName}: Slot ${targetSlot.start} full, moving to ${breakSlots[i].start}`);
             targetSlot = breakSlots[i]; break;
           }
         }
       }
 
-      // ✅ ABSOLUTE FINAL CAP
+      // âœ… ABSOLUTE FINAL CAP
       const finalMin = timeToMinutes(targetSlot.start);
-      if (isEarlyStarter && finalMin > 780) { targetSlot = breakSlots[2]; console.log(`   🔒 ${staffName}: Hard cap → 13:00`); }
-      else if (isMidStarter && finalMin > 840) { targetSlot = breakSlots[3]; console.log(`   🔒 ${staffName}: Hard cap → 14:00`); }
-      else if (isLateStarter && finalMin > 900) { targetSlot = breakSlots[4]; console.log(`   🔒 ${staffName}: Hard cap → 15:00`); }
+      if (isEarlyStarter && finalMin > 780) { targetSlot = breakSlots[2]; console.log(`   ðŸ”’ ${staffName}: Hard cap â†’ 13:00`); }
+      else if (isMidStarter && finalMin > 840) { targetSlot = breakSlots[3]; console.log(`   ðŸ”’ ${staffName}: Hard cap â†’ 14:00`); }
+      else if (isLateStarter && finalMin > 900) { targetSlot = breakSlots[4]; console.log(`   ðŸ”’ ${staffName}: Hard cap â†’ 15:00`); }
 
       } // end 3+ person unit block
 
       } // end Azteca override else
 
-      // ✅ Safety: break must end at least 30 mins before shift ends
+      // âœ… Safety: break must end at least 30 mins before shift ends
       // Use actual shift end (last segment) not just primary assignment end
       const breakEndCheck = timeToMinutes(targetSlot.start) + (actualBreakMinutes || 45);
       const actualShiftEnd = timeToMinutes(shiftEnd); // shiftEnd = sorted[last].endTime
       if (breakEndCheck > actualShiftEnd - 30) {
         // Find earliest slot where break fits safely
         const safeSlot = breakSlots.find(s => timeToMinutes(s.start) + (actualBreakMinutes || 45) <= actualShiftEnd - 30);
-        if (safeSlot) { console.log(`   ⏰ ${staffName}: Break would overrun shift end (${shiftEnd}), moving to ${safeSlot.start}`); targetSlot = safeSlot; }
-        else { console.log(`   ⚠️  ${staffName}: No safe break slot found before shift end (${shiftEnd})`); }
+        if (safeSlot) { console.log(`   â° ${staffName}: Break would overrun shift end (${shiftEnd}), moving to ${safeSlot.start}`); targetSlot = safeSlot; }
+        else { console.log(`   âš ï¸  ${staffName}: No safe break slot found before shift end (${shiftEnd})`); }
       }
       
       // Assign to target slot if space available
@@ -1493,16 +1497,16 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
           category: primaryAssignment.category
         });
         
-        console.log(`   ☕ ${staffName} (${unit}): ${targetSlot.start}-${actualEndTime} [${targetSlot.label}]`);
+        console.log(`   â˜• ${staffName} (${unit}): ${targetSlot.start}-${actualEndTime} [${targetSlot.label}]`);
       } else {
         // Slot full or no target - find next available slot
-        // ✅ RESPECT PRIORITY: Senior Hosts should only get 12:00+ slots even in overflow
+        // âœ… RESPECT PRIORITY: Senior Hosts should only get 12:00+ slots even in overflow
         const isSeniorHostOverflow = primaryAssignment.position && primaryAssignment.position.includes('Senior Host');
         let alternateSlot;
         
         if (isSeniorHostOverflow) {
           // Senior Host: Only consider slots 12:00 or later
-          const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020; // ≤17:00
+          const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020; // â‰¤17:00
           
           alternateSlot = breakSlots.find(s => {
             // Must be 12:00 or later for Senior Hosts
@@ -1517,11 +1521,11 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
           });
           
           if (!alternateSlot) {
-            console.log(`   ⚠️  ${staffName}: All Senior Host slots (12:00+) full!`);
+            console.log(`   âš ï¸  ${staffName}: All Senior Host slots (12:00+) full!`);
           }
         } else {
           // Regular staff: Any available slot
-          const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020; // ≤17:00
+          const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020; // â‰¤17:00
           
           alternateSlot = breakSlots.find(s => {
             // Skip 15:00 for early closes
@@ -1552,14 +1556,14 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
             category: primaryAssignment.category
           });
           
-          console.log(`   ☕ ${staffName} (${unit}): ${alternateSlot.start}-${actualEndTime} [Overflow]`);
+          console.log(`   â˜• ${staffName} (${unit}): ${alternateSlot.start}-${actualEndTime} [Overflow]`);
         }
       }
     }
   }
   
-  // ✅ Assign staggered rides breaks starting at 11:00 (when BC arrives)
-  console.log(`\n🎢 Assigning ${ridesBreaksToAssign.length} rides breaks (staggered from 11:00)...`);
+  // âœ… Assign staggered rides breaks starting at 11:00 (when BC arrives)
+  console.log(`\nðŸŽ¢ Assigning ${ridesBreaksToAssign.length} rides breaks (staggered from 11:00)...`);
   let currentBreakStart = 11 * 60; // 11:00 in minutes
   
   for (const rider of ridesBreaksToAssign) {
@@ -1578,14 +1582,14 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
       category: 'Rides'
     });
 
-    console.log(`  ☕ ${rider.staffName} (${rider.unit}): ${minutesToTime(currentBreakStart)}-${minutesToTime(breakEnd)}`);
+    console.log(`  â˜• ${rider.staffName} (${rider.unit}): ${minutesToTime(currentBreakStart)}-${minutesToTime(breakEnd)}`);
     
     // Next break starts when this one ends (cascading coverage)
     currentBreakStart = breakEnd;
   }
   
   // Show distribution
-  console.log(`\n📊 Break Distribution:`);
+  console.log(`\nðŸ“Š Break Distribution:`);
   for (const slot of breakSlots) {
     console.log(`   ${slot.start}: ${slot.assigned.length}/${slot.capacity} staff`);
   }
@@ -1593,7 +1597,7 @@ function calculateAllBreaksNeeded(assignmentsToProcess, timegripData) {
   return breakAssignments;
 }
 
-// ✅ FIX #2: Split assignments around breaks with correct overlap detection
+// âœ… FIX #2: Split assignments around breaks with correct overlap detection
 function splitAssignmentsAroundBreaks(regularAssignments, breakAssignments) {
   const result = [];
   
@@ -1603,7 +1607,7 @@ function splitAssignmentsAroundBreaks(regularAssignments, breakAssignments) {
       continue;
     }
     
-    // ✅ FIX #2: Correct overlap detection - breaks that overlap with work time
+    // âœ… FIX #2: Correct overlap detection - breaks that overlap with work time
     const breaksForStaff = breakAssignments.filter(b =>
       b.staff === assignment.staff &&
       timeToMinutes(assignment.startTime) < b.endMinutes &&      // Work starts before break ends
@@ -1647,7 +1651,7 @@ function splitAssignmentsAroundBreaks(regularAssignments, breakAssignments) {
 }
 
 // Find late arrivals to cover breaks
-// ✅ FIX #9: Smart Break Cover Assignment
+// âœ… FIX #9: Smart Break Cover Assignment
 // Assigns break cover staff to SPECIFIC UNITS during SPECIFIC BREAKS
 // Ensures someone is always at the unit (especially critical ones)
 
@@ -1667,7 +1671,7 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
   // PRIORITY 2: Retail breaks (Gift Shop, Sweet Shop, etc.)
   const retailBreaks = breakAssignments.filter(b => !admissionsBreaks.includes(b));
   
-  // ✅ BUG FIX #12: Separate rides breaks for skill-based matching
+  // âœ… BUG FIX #12: Separate rides breaks for skill-based matching
   const ridesBreaks = breakAssignments.filter(b => 
     b.position?.includes('Operator') || 
     b.position?.includes('Attendant') ||
@@ -1675,9 +1679,9 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
   );
   const nonRidesRetailBreaks = retailBreaks.filter(b => !ridesBreaks.includes(b));
   
-  // ✅ BUG FIX #12: Process RIDES breaks with CASCADING COVERAGE
+  // âœ… BUG FIX #12: Process RIDES breaks with CASCADING COVERAGE
   // Starting at 11:00 when BC arrives, each operator's break is covered by the previous one
-  console.log(`\n🎢 Processing ${ridesBreaks.length} rides breaks with cascading coverage...`);
+  console.log(`\nðŸŽ¢ Processing ${ridesBreaks.length} rides breaks with cascading coverage...`);
   
   // Sort rides breaks by start time
   const sortedRidesBreaks = ridesBreaks.sort((a, b) => 
@@ -1723,7 +1727,7 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
             reason: 'BC covers first break'
           });
           usedLateArrivals.add(bcOperator.name);
-          console.log(`  ✅ ${bcOperator.name} (BC) → ${breakNeeded.unit} (${breakNeeded.startTime}-${breakNeeded.endTime}) covers ${breakNeeded.staff}'s break`);
+          console.log(`  âœ… ${bcOperator.name} (BC) â†’ ${breakNeeded.unit} (${breakNeeded.startTime}-${breakNeeded.endTime}) covers ${breakNeeded.staff}'s break`);
           
           // Track this operator for cascading
           previousOperator = breakNeeded.staff;
@@ -1732,7 +1736,7 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
         }
       }
       
-      console.log(`  ⚠️  ${breakNeeded.unit}: No BC operator available for ${breakNeeded.staff}'s break (${breakNeeded.startTime}-${breakNeeded.endTime})`);
+      console.log(`  âš ï¸  ${breakNeeded.unit}: No BC operator available for ${breakNeeded.staff}'s break (${breakNeeded.startTime}-${breakNeeded.endTime})`);
     } else {
       // SUBSEQUENT BREAKS: Previous operator covers
       if (previousOperator && previousOperatorReturnTime && previousOperatorReturnTime <= breakStart) {
@@ -1760,7 +1764,7 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
               endTime: breakNeeded.endTime,
               reason: 'Cascading coverage'
             });
-            console.log(`  ✅ ${previousOperator} (returned from break) → ${breakNeeded.unit} (${breakNeeded.startTime}-${breakNeeded.endTime}) covers ${breakNeeded.staff}'s break`);
+            console.log(`  âœ… ${previousOperator} (returned from break) â†’ ${breakNeeded.unit} (${breakNeeded.startTime}-${breakNeeded.endTime}) covers ${breakNeeded.staff}'s break`);
             
             // Update cascade chain
             previousOperator = breakNeeded.staff;
@@ -1770,12 +1774,12 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
         }
       }
       
-      console.log(`  ⚠️  ${breakNeeded.unit}: No cascading cover available for ${breakNeeded.staff}'s break (${breakNeeded.startTime}-${breakNeeded.endTime})`);
+      console.log(`  âš ï¸  ${breakNeeded.unit}: No cascading cover available for ${breakNeeded.staff}'s break (${breakNeeded.startTime}-${breakNeeded.endTime})`);
     }
   }
   
-  // ✅ FIX: Use Zonal Leads to cover uncovered rides breaks
-  console.log(`\n🔑 Checking for uncovered rides breaks...`);
+  // âœ… FIX: Use Zonal Leads to cover uncovered rides breaks
+  console.log(`\nðŸ”‘ Checking for uncovered rides breaks...`);
   const uncoveredRidesBreaks = [];
   
   for (const breakNeeded of sortedRidesBreaks) {
@@ -1827,20 +1831,20 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
             reason: 'Zonal Lead covers break'
           });
           usedZonalLeads.add(availableLead.name);
-          console.log(`   ✅ ${availableLead.name} (Zonal Lead) → ${breakNeeded.unit} (${breakNeeded.startTime}-${breakNeeded.endTime}) covers ${breakNeeded.staff}'s break`);
+          console.log(`   âœ… ${availableLead.name} (Zonal Lead) â†’ ${breakNeeded.unit} (${breakNeeded.startTime}-${breakNeeded.endTime}) covers ${breakNeeded.staff}'s break`);
         } else {
-          console.log(`   ⚠️  ${availableLead.name} doesn't have skill for ${breakNeeded.unit}`);
+          console.log(`   âš ï¸  ${availableLead.name} doesn't have skill for ${breakNeeded.unit}`);
         }
       } else {
-        console.log(`   ⚠️  No available Zonal Lead for ${breakNeeded.unit} break (${breakNeeded.startTime}-${breakNeeded.endTime})`);
+        console.log(`   âš ï¸  No available Zonal Lead for ${breakNeeded.unit} break (${breakNeeded.startTime}-${breakNeeded.endTime})`);
       }
     }
   } else {
-    console.log(`   ✅ All rides breaks are covered!`);
+    console.log(`   âœ… All rides breaks are covered!`);
   }
   
   // Process NON-RIDES breaks (original logic)
-  console.log(`\n🛍️ Processing ${nonRidesRetailBreaks.length} retail/admissions breaks...`);
+  console.log(`\nðŸ›ï¸ Processing ${nonRidesRetailBreaks.length} retail/admissions breaks...`);
   
   for (const breakNeeded of nonRidesRetailBreaks) {
     let foundCover = false;
@@ -1884,7 +1888,7 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
       });
       const staffDisplayName = timegripStaff ? timegripStaff.name : lateArrival.name;
       
-      // ✅ ASSIGN BREAK COVER for this ride
+      // âœ… ASSIGN BREAK COVER for this ride
       breakCoverAssignments.push({
         unit: breakNeeded.unit,
         position: breakNeeded.position,
@@ -1902,14 +1906,14 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
       usedLateArrivals.add(lateArrival.name);
       assignedStaff.add(lateArrival.name);
       
-      console.log(`  ✅ ${staffDisplayName} (${matchingSkill.fullSkill}) → ${breakNeeded.unit} covers ${breakNeeded.staff}'s break (${breakNeeded.startTime}-${breakNeeded.endTime})`);
+      console.log(`  âœ… ${staffDisplayName} (${matchingSkill.fullSkill}) â†’ ${breakNeeded.unit} covers ${breakNeeded.staff}'s break (${breakNeeded.startTime}-${breakNeeded.endTime})`);
       covered++;
       foundCover = true;
       break;
     }
     
     if (!foundCover) {
-      console.log(`  ⚠️  ${breakNeeded.staff} at ${breakNeeded.unit}: No late arrival with matching skill available`);
+      console.log(`  âš ï¸  ${breakNeeded.staff} at ${breakNeeded.unit}: No late arrival with matching skill available`);
       uncovered++;
     }
   }
@@ -1945,7 +1949,7 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
       });
       const staffDisplayName = timegripStaff ? timegripStaff.name : lateArrival.name;
       
-      // ✅ CREATE ROTATIONAL ASSIGNMENT WITH PERSONAL BREAK
+      // âœ… CREATE ROTATIONAL ASSIGNMENT WITH PERSONAL BREAK
       
       // Part 1: Work before break coverage
       if (breakStart > workerStart) {
@@ -2009,7 +2013,7 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
           zone: zone,
           dayCode: dayCode
         });
-        console.log(`     ✅ ${staffDisplayName} personal break: ${personalBreakTime.start}-${personalBreakTime.end}`);
+        console.log(`     âœ… ${staffDisplayName} personal break: ${personalBreakTime.start}-${personalBreakTime.end}`);
       }
       
       // Part 5: Work after personal break
@@ -2030,20 +2034,20 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
       usedLateArrivals.add(lateArrival.name);
       assignedStaff.add(lateArrival.name);
       
-      console.log(`  ✅ ${staffDisplayName} → Admissions rotational (${breakNeeded.startTime}-${breakNeeded.endTime} break cover)`);
+      console.log(`  âœ… ${staffDisplayName} â†’ Admissions rotational (${breakNeeded.startTime}-${breakNeeded.endTime} break cover)`);
       covered++;
       foundCover = true;
       break;
     }
     
     if (!foundCover) {
-      console.log(`  ⚠️  ${breakNeeded.staff} needs admissions break but NO cover available`);
+      console.log(`  âš ï¸  ${breakNeeded.staff} needs admissions break but NO cover available`);
       uncovered++;
     }
   }
   
   // Process retail/admissions breaks (non-rides)
-  console.log(`\n🛍️ Processing ${nonRidesRetailBreaks.length} retail/admissions breaks...`);
+  console.log(`\nðŸ›ï¸ Processing ${nonRidesRetailBreaks.length} retail/admissions breaks...`);
   
   for (const breakNeeded of nonRidesRetailBreaks) {
     let foundCover = false;
@@ -2051,7 +2055,7 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
     for (const lateArrival of lateArrivals) {
       if (usedLateArrivals.has(lateArrival.name) || assignedStaff.has(lateArrival.name)) continue;
       
-      // ✅ V12: Validate skill matches the specific unit
+      // âœ… V12: Validate skill matches the specific unit
       if (!hasSkillForUnit(lateArrival.name, breakNeeded.unit, skillsData)) {
         continue;
       }
@@ -2080,7 +2084,7 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
       });
       const staffDisplayName = timegripStaff ? timegripStaff.name : lateArrival.name;
       
-      // ✅ CREATE ROTATIONAL RETAIL ASSIGNMENT WITH PERSONAL BREAK
+      // âœ… CREATE ROTATIONAL RETAIL ASSIGNMENT WITH PERSONAL BREAK
       
       // Work before
       if (breakStart > workerStart) {
@@ -2144,7 +2148,7 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
           zone: zone,
           dayCode: dayCode
         });
-        console.log(`     ✅ ${staffDisplayName} personal break: ${personalBreakTime.start}-${personalBreakTime.end}`);
+        console.log(`     âœ… ${staffDisplayName} personal break: ${personalBreakTime.start}-${personalBreakTime.end}`);
       }
       
       // Work after personal break
@@ -2165,7 +2169,7 @@ function findBreakCover(breakAssignments, lateArrivals, assignedStaff, timegripD
       usedLateArrivals.add(lateArrival.name);
       assignedStaff.add(lateArrival.name);
       
-      console.log(`  ✅ ${staffDisplayName} → ${breakNeeded.unit} rotational (${breakNeeded.startTime}-${breakNeeded.endTime} break cover)`);
+      console.log(`  âœ… ${staffDisplayName} â†’ ${breakNeeded.unit} rotational (${breakNeeded.startTime}-${breakNeeded.endTime} break cover)`);
       covered++;
       foundCover = true;
       break;
@@ -2195,7 +2199,7 @@ function unitsMatchForBreakCover(skillUnit, breakUnit) {
          breakNorm.includes(skillNorm);
 }
 
-// ✅ V13: Extract specific unit name from planned function
+// âœ… V13: Extract specific unit name from planned function
 // Maps role names like "Rides - AdventureTreeOperator" to unit names like "Adventure Tree"
 // Returns null for generic retail/admissions to defer to PASS 2 with smarter logic
 function getSpecificUnitFromFunction(plannedFunction) {
@@ -2348,11 +2352,11 @@ function getSpecificUnitFromFunction(plannedFunction) {
   return null;
 }
 
-// ✅ V10.0: Auto-assign with SELECTED UNITS (accepts selectedUnits parameter)
+// âœ… V10.0: Auto-assign with SELECTED UNITS (accepts selectedUnits parameter)
 app.post('/api/auto-assign', upload.fields([
   { name: 'skillsMatrix', maxCount: 1 },
   { name: 'timegripCsv', maxCount: 1 }
-  // ✅ V10.0: No file upload needed!
+  // âœ… V10.0: No file upload needed!
 ]), async (req, res) => {
   try {
     const { teamName, zone, dayCode, date, selectedUnits, includeAbsentStaff } = req.body;
@@ -2374,7 +2378,7 @@ app.post('/api/auto-assign', upload.fields([
           includeAbsentStaffNames = parsed.filter(Boolean);
         }
       } catch (parseError) {
-        console.warn('⚠️ Invalid includeAbsentStaff payload, ignoring override list');
+        console.warn('âš ï¸ Invalid includeAbsentStaff payload, ignoring override list');
       }
     }
 
@@ -2395,11 +2399,11 @@ app.post('/api/auto-assign', upload.fields([
     let staffingRequirements = zoneData.staffingRequirements[dayCode] || [];
     const dayCodeInfo = zoneData.dayCodeOptions.find(dc => dc.code === dayCode);
     
-    // ✅ V10.0: FILTER staffing requirements based on selected units
+    // âœ… V10.0: FILTER staffing requirements based on selected units
     const selectedUnitsArray = selectedUnits ? JSON.parse(selectedUnits) : [];
     const selectedUnitsCanonical = [...new Set(selectedUnitsArray.map(canonicalizeUnitName))];
     if (selectedUnitsArray.length > 0) {
-      console.log(`\n🔍 Filtering staffing requirements...`);
+      console.log(`\nðŸ” Filtering staffing requirements...`);
       console.log(`   Selected units from frontend: ${selectedUnitsArray.join(', ')}`);
       
       const beforeCount = staffingRequirements.length;
@@ -2408,14 +2412,14 @@ app.post('/api/auto-assign', upload.fields([
       });
       const afterCount = staffingRequirements.length;
       
-      console.log(`\n✅ Filtered to ${afterCount} selected units (removed ${beforeCount - afterCount} unselected)`);
+      console.log(`\nâœ… Filtered to ${afterCount} selected units (removed ${beforeCount - afterCount} unselected)`);
       
-      // ✅ FIX: Add requirements for selected units that Day Code doesn't include
+      // âœ… FIX: Add requirements for selected units that Day Code doesn't include
       const unitsWithRequirements = new Set(staffingRequirements.map((r) => canonicalizeUnitName(r.unitName)));
       const missingSelectedUnits = selectedUnitsCanonical.filter((unit) => !unitsWithRequirements.has(unit));
       
       if (missingSelectedUnits.length > 0) {
-        console.log(`\n📝 Adding requirements for selected units not in Day Code ${dayCode}:`);
+        console.log(`\nðŸ“ Adding requirements for selected units not in Day Code ${dayCode}:`);
         const closedDaysStatus = getClosedDaysStatus(zoneFilePath, date, dayCode);
         const closedDaysCanonical = new Map(
           Object.entries(closedDaysStatus).map(([name, status]) => [canonicalizeUnitName(name), status])
@@ -2439,7 +2443,7 @@ app.post('/api/auto-assign', upload.fields([
                 staffNeeded: 1
               });
               
-              console.log(`   ✅ Added: ${unitName} (${position})`);
+              console.log(`   âœ… Added: ${unitName} (${position})`);
               
             } else if (category === 'Admissions') {
               // Add BOTH Senior Host and regular Host for proper entrance coverage
@@ -2455,7 +2459,7 @@ app.post('/api/auto-assign', upload.fields([
                 staffNeeded: 1
               });
               
-              console.log(`   ✅ Added: ${unitName} (Admissions Senior Host + Host)`);
+              console.log(`   âœ… Added: ${unitName} (Admissions Senior Host + Host)`);
               
             } else if (category === 'Car Parks') {
               staffingRequirements.push({
@@ -2464,7 +2468,7 @@ app.post('/api/auto-assign', upload.fields([
                 staffNeeded: 1
               });
               
-              console.log(`   ✅ Added: ${unitName} (Car Parks - Host)`);
+              console.log(`   âœ… Added: ${unitName} (Car Parks - Host)`);
               
             } else if (category === 'GHI') {
               // Add both Senior Host and Front Desk Host for GHI
@@ -2480,7 +2484,7 @@ app.post('/api/auto-assign', upload.fields([
                 staffNeeded: 1
               });
               
-              console.log(`   ✅ Added: ${unitName} (GHI Senior Host + Front Desk Host)`);
+              console.log(`   âœ… Added: ${unitName} (GHI Senior Host + Front Desk Host)`);
               
             } else if (category === 'Retail') {
               // Add both Senior Host and regular Host for retail units
@@ -2496,11 +2500,11 @@ app.post('/api/auto-assign', upload.fields([
                 staffNeeded: 1
               });
               
-              console.log(`   ✅ Added: ${unitName} (Retail Senior Host + Host)`);
+              console.log(`   âœ… Added: ${unitName} (Retail Senior Host + Host)`);
             }
             
           } else {
-            console.log(`   ⚠️  Skipped: ${unitName} (marked as Closed)`);
+            console.log(`   âš ï¸  Skipped: ${unitName} (marked as Closed)`);
           }
         }
       }
@@ -2537,10 +2541,10 @@ app.post('/api/auto-assign', upload.fields([
       const explorerIsBaseline = explorerDays.includes(dayCode);
       const schoolsIsBaseline = schoolsDays.includes(dayCode);
       
-      console.log(`   🚪 Entrances available: ${availableEntrances.join(', ')}`);
-      console.log(`   📋 Day Code ${dayCode}: Explorer baseline=${explorerIsBaseline}, Schools baseline=${schoolsIsBaseline}`);
+      console.log(`   ðŸšª Entrances available: ${availableEntrances.join(', ')}`);
+      console.log(`   ðŸ“‹ Day Code ${dayCode}: Explorer baseline=${explorerIsBaseline}, Schools baseline=${schoolsIsBaseline}`);
       
-      // ✅ Dynamic afternoon targets based on BASELINE day code priority
+      // âœ… Dynamic afternoon targets based on BASELINE day code priority
       // Explorer baseline days (E-I): Keep 4 at Explorer, 3 at Lodge
       // Schools baseline days (B-D): Keep 4 at Lodge, 3 at Schools, 2 at manually-added Explorer
       // Lodge only days (A, K-N): Keep 3 at Lodge
@@ -2560,7 +2564,7 @@ app.post('/api/auto-assign', upload.fields([
         // If Schools manually added, give it minimum
         if (hasSchools) {
           AFTERNOON_TARGETS['Schools Entrance'] = 2;
-          console.log(`   ⚠️  Schools manually added to Explorer day - afternoon target = 2`);
+          console.log(`   âš ï¸  Schools manually added to Explorer day - afternoon target = 2`);
         }
       } else if (schoolsIsBaseline && !explorerIsBaseline) {
         // Schools baseline (Day Codes B, C, D - Lodge 5PM + Schools)
@@ -2570,7 +2574,7 @@ app.post('/api/auto-assign', upload.fields([
         // If Explorer manually added, give it MINIMUM (not priority!)
         if (hasExplorer) {
           AFTERNOON_TARGETS['Explorer Entrance'] = 2;
-          console.log(`   ⚠️  Explorer manually added to Schools day - afternoon target = 2 (minimum)`);
+          console.log(`   âš ï¸  Explorer manually added to Schools day - afternoon target = 2 (minimum)`);
         }
       } else {
         // Lodge only baseline (Day Codes A, K-N - quiet days)
@@ -2579,11 +2583,11 @@ app.post('/api/auto-assign', upload.fields([
         // If Explorer/Schools manually added, give minimum
         if (hasExplorer) {
           AFTERNOON_TARGETS['Explorer Entrance'] = 2;
-          console.log(`   ⚠️  Explorer manually added to Lodge-only day - afternoon target = 2`);
+          console.log(`   âš ï¸  Explorer manually added to Lodge-only day - afternoon target = 2`);
         }
         if (hasSchools) {
           AFTERNOON_TARGETS['Schools Entrance'] = 2;
-          console.log(`   ⚠️  Schools manually added to Lodge-only day - afternoon target = 2`);
+          console.log(`   âš ï¸  Schools manually added to Lodge-only day - afternoon target = 2`);
         }
       }
       
@@ -2591,13 +2595,13 @@ app.post('/api/auto-assign', upload.fields([
       for (const entrance of availableEntrances) {
         if (!AFTERNOON_TARGETS[entrance]) {
           AFTERNOON_TARGETS[entrance] = 2;  // Fallback minimum
-          console.log(`   ⚠️  ${entrance} fallback target = 2`);
+          console.log(`   âš ï¸  ${entrance} fallback target = 2`);
         }
       }
       
-      console.log(`   🎯 Afternoon targets: ${Object.entries(AFTERNOON_TARGETS).map(([k,v]) => `${k.replace(' Entrance', '')}=${v}`).join(', ')}`);
+      console.log(`   ðŸŽ¯ Afternoon targets: ${Object.entries(AFTERNOON_TARGETS).map(([k,v]) => `${k.replace(' Entrance', '')}=${v}`).join(', ')}`);
       
-      // 🍦 Ben & Jerry's minimum staffing requirement
+      // ðŸ¦ Ben & Jerry's minimum staffing requirement
       const BJ_MIN_STAFF = 2;  // Needs at least 2 staff in afternoon
       
       // Retail priority for afternoon help
@@ -2636,11 +2640,11 @@ app.post('/api/auto-assign', upload.fields([
         );
         
         if (afternoonStaff.length <= targetStaff) {
-          console.log(`   ✅ ${entranceUnit}: ${afternoonStaff.length} afternoon staff (within target of ${targetStaff})`);
+          console.log(`   âœ… ${entranceUnit}: ${afternoonStaff.length} afternoon staff (within target of ${targetStaff})`);
           continue; // No overflow, skip
         }
         
-        console.log(`   📊 ${entranceUnit}: ${afternoonStaff.length} afternoon staff (target ${targetStaff}, reassign ${afternoonStaff.length - targetStaff} to retail)`);
+        console.log(`   ðŸ“Š ${entranceUnit}: ${afternoonStaff.length} afternoon staff (target ${targetStaff}, reassign ${afternoonStaff.length - targetStaff} to retail)`);
         
         // Identify who to keep vs reassign
         const seniorHosts = afternoonStaff.filter(a => 
@@ -2661,9 +2665,9 @@ app.post('/api/auto-assign', upload.fields([
         // Reassign: Remaining overflow hosts (beyond the target)
         const toReassign = regularHosts.slice(regularHostsNeeded);
         
-        console.log(`   → Keep ${toKeep.length} at ${entranceUnit}: ${toKeep.map(a => a.staff).join(', ')}`);
+        console.log(`   â†’ Keep ${toKeep.length} at ${entranceUnit}: ${toKeep.map(a => a.staff).join(', ')}`);
         if (toReassign.length > 0) {
-          console.log(`   → Reassign ${toReassign.length} to retail: ${toReassign.map(a => a.staff).join(', ')}`);
+          console.log(`   â†’ Reassign ${toReassign.length} to retail: ${toReassign.map(a => a.staff).join(', ')}`);
         }
         
         // Track overflow assignments per retail unit (for this entrance)
@@ -2674,7 +2678,7 @@ app.post('/api/auto-assign', upload.fields([
         for (const staffAssignment of toReassign) {
           const staffName = staffAssignment.staff;
           
-          // 🍦 Count current afternoon staff at Ben & Jerry's (across all assignments)
+          // ðŸ¦ Count current afternoon staff at Ben & Jerry's (across all assignments)
           const bjAfternoonStaff = updatedAssignments.filter(a => 
             a.unit === "Ben & Jerry's" &&
             a.staff !== 'UNFILLED' &&
@@ -2688,11 +2692,11 @@ app.post('/api/auto-assign', upload.fields([
           // Find best retail unit for this staff (priority + availability + skills)
           let targetRetailUnit = null;
           
-          // 🍦 PRIORITY CHECK: If B&J understaffed and staff has skill, send there first
+          // ðŸ¦ PRIORITY CHECK: If B&J understaffed and staff has skill, send there first
           if (bjNeedsStaff && hasSkillForUnit(staffName, "Ben & Jerry's", skillsData) && 
               (overflowPerUnit["Ben & Jerry's"] || 0) < MAX_OVERFLOW_PER_UNIT) {
             targetRetailUnit = "Ben & Jerry's";
-            console.log(`   🍦 ${staffName}: ${entranceUnit} → Ben & Jerry's (understaffed: ${bjCurrentCount}/${BJ_MIN_STAFF}, has skill)`);
+            console.log(`   ðŸ¦ ${staffName}: ${entranceUnit} â†’ Ben & Jerry's (understaffed: ${bjCurrentCount}/${BJ_MIN_STAFF}, has skill)`);
           } else {
             // Normal priority matching - respect overflow cap
             for (const retailUnit of RETAIL_PRIORITY) {
@@ -2720,18 +2724,18 @@ app.post('/api/auto-assign', upload.fields([
                   }
                 }
                 targetRetailUnit = retailUnit;
-                console.log(`   ✅ ${staffName}: ${entranceUnit} → ${retailUnit} (skill match)`);
+                console.log(`   âœ… ${staffName}: ${entranceUnit} â†’ ${retailUnit} (skill match)`);
                 break;
               }
             }
             
             // If no skilled match found, use fallback priority
             if (!targetRetailUnit) {
-              // ⚠️ SAFETY: Never send untrained staff to specialized units!
+              // âš ï¸ SAFETY: Never send untrained staff to specialized units!
               // Ben & Jerry's and Kiosk require specific training - SKILL REQUIRED
               const SKILL_REQUIRED_UNITS = ["Ben & Jerry's", "Ben & Jerry's Kiosk", "Sealife"];
 
-              // ✅ FIX 23: Operational minimums — skip units already at their staffing floor
+              // âœ… FIX 23: Operational minimums â€” skip units already at their staffing floor
               const STEP6_UNIT_MINIMUMS = {
                 'Adventures Point Gift Shop': 3,
                 'Sweet Shop': 3,
@@ -2771,7 +2775,7 @@ app.post('/api/auto-assign', upload.fields([
               }
 
               if (targetRetailUnit) {
-                  console.log(`   ⚠️  ${staffName}: ${entranceUnit} → ${targetRetailUnit} (fallback, no skill match)`);
+                  console.log(`   âš ï¸  ${staffName}: ${entranceUnit} â†’ ${targetRetailUnit} (fallback, no skill match)`);
                 }
               }
             }
@@ -2834,10 +2838,10 @@ app.post('/api/auto-assign', upload.fields([
         }
       }
       
-      // ✅ BEN & JERRY'S CASCADE: Ensure B&J gets skilled staff
+      // âœ… BEN & JERRY'S CASCADE: Ensure B&J gets skilled staff
       // If someone without B&J skill was assigned to Sweet Shop,
       // and someone at Sweet Shop HAS B&J skill, swap them
-      console.log(`\n   🍦 Checking Ben & Jerry's staffing needs...`);
+      console.log(`\n   ðŸ¦ Checking Ben & Jerry's staffing needs...`);
       
       const bjUnit = "Ben & Jerry's";
       const sweetUnit = "Sweet Shop";
@@ -2857,10 +2861,10 @@ app.post('/api/auto-assign', upload.fields([
         const bjTarget = 2; // Minimum needed
         let bjCurrent = bjAfternoonStaff.length;
         
-        console.log(`   📊 ${bjUnit}: ${bjCurrent}/${bjTarget} afternoon staff`);
+        console.log(`   ðŸ“Š ${bjUnit}: ${bjCurrent}/${bjTarget} afternoon staff`);
         
         if (bjCurrent < bjTarget) {
-          console.log(`   ⚠️  ${bjUnit} understaffed! Looking for skilled staff to cascade...`);
+          console.log(`   âš ï¸  ${bjUnit} understaffed! Looking for skilled staff to cascade...`);
           
           // Find staff at Sweet Shop who have B&J skill
           const sweetAfternoonStaff = updatedAssignments.filter(a =>
@@ -2878,7 +2882,7 @@ app.post('/api/auto-assign', upload.fields([
             
             // Check if this Sweet Shop staff has B&J skill
             if (hasSkillForUnit(staffName, bjUnit, skillsData)) {
-              console.log(`   🔄 CASCADE: ${staffName} has B&J skill, moving from ${sweetUnit} → ${bjUnit}`);
+              console.log(`   ðŸ”„ CASCADE: ${staffName} has B&J skill, moving from ${sweetUnit} â†’ ${bjUnit}`);
               
               // Move this staff from Sweet Shop to B&J
               for (let i = 0; i < updatedAssignments.length; i++) {
@@ -2927,15 +2931,15 @@ app.post('/api/auto-assign', upload.fields([
           }
           
           if (bjCurrent < bjTarget) {
-            console.log(`   ⚠️  ${bjUnit} still needs ${bjTarget - bjCurrent} more skilled staff`);
+            console.log(`   âš ï¸  ${bjUnit} still needs ${bjTarget - bjCurrent} more skilled staff`);
           }
         }
       }
       
       if (reassignments.length > 0) {
-        console.log(`\n   📊 Afternoon Reassignment Summary: ${reassignments.length} staff moved to retail`);
+        console.log(`\n   ðŸ“Š Afternoon Reassignment Summary: ${reassignments.length} staff moved to retail`);
       } else {
-        console.log(`\n   ✅ No afternoon reassignments needed (all entrances within 2-3 staff target)`);
+        console.log(`\n   âœ… No afternoon reassignments needed (all entrances within 2-3 staff target)`);
       }
       
       return updatedAssignments;
@@ -2956,13 +2960,13 @@ app.post('/api/auto-assign', upload.fields([
       filledPositions.set(req.position, 0);
     });
     
-    // ✅ ZONAL LEADS: Pre-assign as "Roaming" BEFORE main assignment loop
-    console.log(`\n🔑 Identifying Zonal Leads from Skills Matrix...`);
+    // âœ… ZONAL LEADS: Pre-assign as "Roaming" BEFORE main assignment loop
+    console.log(`\nðŸ”‘ Identifying Zonal Leads from Skills Matrix...`);
     const zonalLeadNames = skillsData.zonalLeads || [];
     console.log(`   Found ${zonalLeadNames.length} zonal leads in Skills Matrix: ${zonalLeadNames.slice(0, 5).join(', ')}`);
     
-    // ✅ BUG FIX #10: ALSO get Zonal Leads from TimeGrip MANAGEMENT category
-    console.log(`\n🔑 Identifying Zonal Leads from TimeGrip MANAGEMENT category...`);
+    // âœ… BUG FIX #10: ALSO get Zonal Leads from TimeGrip MANAGEMENT category
+    console.log(`\nðŸ”‘ Identifying Zonal Leads from TimeGrip MANAGEMENT category...`);
     const timegripZonalLeads = [];
     if (timegripData.staffByFunction?.MANAGEMENT) {
       for (const staff of timegripData.staffByFunction.MANAGEMENT) {
@@ -2973,9 +2977,9 @@ app.post('/api/auto-assign', upload.fields([
     }
     console.log(`   Found ${timegripZonalLeads.length} zonal leads in TimeGrip: ${timegripZonalLeads.slice(0, 5).join(', ')}`);
     
-    // ✅ BUG FIX #10: Combine BOTH sources (union - no duplicates)
+    // âœ… BUG FIX #10: Combine BOTH sources (union - no duplicates)
     const allZonalLeadNames = new Set([...zonalLeadNames, ...timegripZonalLeads]);
-    console.log(`\n🔑 Total unique Zonal Leads (Skills Matrix + TimeGrip): ${allZonalLeadNames.size}`);
+    console.log(`\nðŸ”‘ Total unique Zonal Leads (Skills Matrix + TimeGrip): ${allZonalLeadNames.size}`);
     console.log(`   Combined list: ${Array.from(allZonalLeadNames).join(', ')}`);
     
     // Find staff from Skills Matrix who are Zonal Leads
@@ -2986,7 +2990,7 @@ app.post('/api/auto-assign', upload.fields([
       );
     });
     
-    // ✅ BUG FIX #10: Add TimeGrip-only Zonal Leads (not in Skills Matrix)
+    // âœ… BUG FIX #10: Add TimeGrip-only Zonal Leads (not in Skills Matrix)
     const zonalLeadsToProcess = [...zonalLeadStaffFromMatrix];
     for (const leadName of timegripZonalLeads) {
       const normalizedLead = normalizeStaffName(leadName);
@@ -3000,11 +3004,11 @@ app.post('/api/auto-assign', upload.fields([
           name: leadName,
           skills: [] // No skills needed for Zonal Leads
         });
-        console.log(`   ➕ Added TimeGrip-only Zonal Lead: ${leadName}`);
+        console.log(`   âž• Added TimeGrip-only Zonal Lead: ${leadName}`);
       }
     }
     
-    console.log(`\n🔑 Processing ${zonalLeadsToProcess.length} Zonal Leads (showing "Roaming" in Excel)`);
+    console.log(`\nðŸ”‘ Processing ${zonalLeadsToProcess.length} Zonal Leads (showing "Roaming" in Excel)`);
     
     for (const staff of zonalLeadsToProcess) {
       if (!isStaffAvailableForTime(staff.name, '08:00', '16:00', timegripData)) {
@@ -3018,7 +3022,7 @@ app.post('/api/auto-assign', upload.fields([
       
       const normalizedSearchName = normalizeStaffName(staff.name);
       
-      // ✅ BUG FIX #9: Search for Zonal Leads in BOTH MANAGEMENT and general workingStaff
+      // âœ… BUG FIX #9: Search for Zonal Leads in BOTH MANAGEMENT and general workingStaff
       // First try MANAGEMENT category (where Zonal Leads should be)
       let timegripStaff = null;
       if (timegripData.staffByFunction?.MANAGEMENT) {
@@ -3048,21 +3052,21 @@ app.post('/api/auto-assign', upload.fields([
         trainingMatch: 'Zonal Lead',
         startTime: workingHours.startTime,
         endTime: workingHours.endTime,
-        breakMinutes: workingHours.breakMinutes || 0,  // ✅ FIX #1a: Include break info from TimeGrip
+        breakMinutes: workingHours.breakMinutes || 0,  // âœ… FIX #1a: Include break info from TimeGrip
         isBreak: false
       });
       
       assignedStaff.add(staff.name);
-      console.log(`  ✅ ${staff.name} assigned as Zonal Lead (Roaming) ${workingHours.startTime}-${workingHours.endTime}`);
+      console.log(`  âœ… ${staff.name} assigned as Zonal Lead (Roaming) ${workingHours.startTime}-${workingHours.endTime}`);
       assigned++;
     }
     
     // ================================================================================
-    // ✅ V11 PASS 0 (REVISED): Calculate Breaks & Find Late Arrival Coverage
+    // âœ… V11 PASS 0 (REVISED): Calculate Breaks & Find Late Arrival Coverage
     // ================================================================================
     
-    // ✅ PASS 1: SPECIFIC Assignments - from TimeGrip Planned Function (V13)
-    console.log('\n📋 PASS 1: Exact Specific Matches (from TimeGrip Planned Function)');
+    // âœ… PASS 1: SPECIFIC Assignments - from TimeGrip Planned Function (V13)
+    console.log('\nðŸ“‹ PASS 1: Exact Specific Matches (from TimeGrip Planned Function)');
     
     const specificStaff = timegripData.staffByFunction?.SPECIFIC || [];
     console.log(`   Processing ${specificStaff.length} SPECIFIC staff from TimeGrip...`);
@@ -3074,11 +3078,11 @@ app.post('/api/auto-assign', upload.fields([
       const specificUnit = getSpecificUnitFromFunction(timegripStaff.plannedFunction);
       
       if (!specificUnit) {
-        console.log(`  ⚠️  ${timegripStaff.name}: Could not extract unit from "${timegripStaff.plannedFunction}"`);
+        console.log(`  âš ï¸  ${timegripStaff.name}: Could not extract unit from "${timegripStaff.plannedFunction}"`);
         continue;
       }
       
-      // ✅ BUG FIX #8: Extract Operator/Attendant designation from TimeGrip
+      // âœ… BUG FIX #8: Extract Operator/Attendant designation from TimeGrip
       const plannedFunctionLower = (timegripStaff.plannedFunction || '').toLowerCase();
       const isOperator = plannedFunctionLower.includes('operator') || plannedFunctionLower.includes(' op');
       const isAttendant = plannedFunctionLower.includes('attendant') || plannedFunctionLower.includes('att ') || plannedFunctionLower.includes(' att');
@@ -3088,7 +3092,7 @@ app.post('/api/auto-assign', upload.fields([
         const unitMatches = req.unitName.toLowerCase() === specificUnit.toLowerCase();
         if (!unitMatches) return false;
         
-        // ✅ BUG FIX #8: Match position type (Operator vs Attendant)
+        // âœ… BUG FIX #8: Match position type (Operator vs Attendant)
         const reqPositionLower = req.position.toLowerCase();
         const reqIsOperator = reqPositionLower.includes('operator');
         const reqIsAttendant = reqPositionLower.includes('attendant');
@@ -3101,7 +3105,7 @@ app.post('/api/auto-assign', upload.fields([
         return true;
       });
       
-      // ✅ FIX #1: If exact match is full OR doesn't exist, try ANY position in same category (allow overstaffing)
+      // âœ… FIX #1: If exact match is full OR doesn't exist, try ANY position in same category (allow overstaffing)
       if (!requirement || (filledPositions.get(requirement.position) || 0) >= requirement.staffNeeded) {
         // Is this a Car Parks staff member?
         if (specificUnit.toLowerCase().includes('car park')) {
@@ -3119,17 +3123,17 @@ app.post('/api/auto-assign', upload.fields([
               return fillA - fillB;
             });
             requirement = sorted[0];  // Use this position instead
-            console.log(`  ↪️  ${timegripStaff.name}: Car Parks reassigned to ${requirement.unitName}`);
+            console.log(`  â†ªï¸  ${timegripStaff.name}: Car Parks reassigned to ${requirement.unitName}`);
           }
         }
       }
       
       if (!requirement) {
-        console.log(`  ⚠️  ${timegripStaff.name}: Could not assign to category`);
+        console.log(`  âš ï¸  ${timegripStaff.name}: Could not assign to category`);
         continue;
       }
       
-      // ✅ ASSIGN (allow overstaffing - don't check if full!)
+      // âœ… ASSIGN (allow overstaffing - don't check if full!)
       assignments.push({
         unit: requirement.unitName,
         position: requirement.position,
@@ -3140,23 +3144,23 @@ app.post('/api/auto-assign', upload.fields([
         trainingMatch: `Specific: ${timegripStaff.plannedFunction}`,
         startTime: timegripStaff.startTime,
         endTime: timegripStaff.endTime,
-        breakMinutes: timegripStaff.scheduledBreakMinutes || 0,  // ✅ FIX #1b: Include break info
+        breakMinutes: timegripStaff.scheduledBreakMinutes || 0,  // âœ… FIX #1b: Include break info
         isBreak: false,
-        category: getCategoryFromUnit(requirement.unitName)  // ✅ Add category for break logic
+        category: getCategoryFromUnit(requirement.unitName)  // âœ… Add category for break logic
       });
       
       assignedStaff.add(timegripStaff.name);
       filledPositions.set(requirement.position, (filledPositions.get(requirement.position) || 0) + 1);
       
-      console.log(`  ✅ ${timegripStaff.name} → ${requirement.unitName} (${requirement.position}) ${timegripStaff.startTime}-${timegripStaff.endTime}`);
+      console.log(`  âœ… ${timegripStaff.name} â†’ ${requirement.unitName} (${requirement.position}) ${timegripStaff.startTime}-${timegripStaff.endTime}`);
       assigned++;
     }
     
 
- // ✅ PASS 2: Smart Retail/Admissions Assignment with Shift Coverage
-console.log('\n📋 PASS 2: Smart Retail/Admissions & Break Cover Assignment');
+ // âœ… PASS 2: Smart Retail/Admissions Assignment with Shift Coverage
+console.log('\nðŸ“‹ PASS 2: Smart Retail/Admissions & Break Cover Assignment');
 
-// ✅ Redirect unassigned rides staff to Rides Break Cover (e.g. ROTB when unit not selected)
+// âœ… Redirect unassigned rides staff to Rides Break Cover (e.g. ROTB when unit not selected)
 const unassignedRidesStaff = (timegripData.staffByFunction?.SPECIFIC || []).filter(s =>
   !assignedStaff.has(s.name) &&
   s.plannedFunction?.startsWith('Rides -')
@@ -3180,7 +3184,7 @@ for (const staff of unassignedRidesStaff) {
   assignedStaff.add(staff.name);
   filledPositions.set(ridesBreakCoverReq.position, (filledPositions.get(ridesBreakCoverReq.position) || 0) + 1);
   assigned++;
-  console.log(`  ✅ ${staff.name} → Rides Break Cover (redirected from ${staff.plannedFunction})`);
+  console.log(`  âœ… ${staff.name} â†’ Rides Break Cover (redirected from ${staff.plannedFunction})`);
 }
 
 
@@ -3193,7 +3197,7 @@ const deferredRetailAdmissions = (timegripData.staffByFunction?.SPECIFIC || []).
 
 console.log(`   Found ${deferredRetailAdmissions.length} deferred retail/admissions staff`);
 
-// ✅ CLASSIFY STAFF BY TYPE AND SHIFT LENGTH
+// âœ… CLASSIFY STAFF BY TYPE AND SHIFT LENGTH
 const staffByType = classifyDeferredRetailAdmissions(
   deferredRetailAdmissions,
   skillsData,
@@ -3201,12 +3205,12 @@ const staffByType = classifyDeferredRetailAdmissions(
   timeToMinutes
 );
 
-console.log(`   → ${staffByType.seniorHostsFullShift.length} Senior Hosts (full shift)`);
-console.log(`   → ${staffByType.regularHostsFullShift.length} Regular Hosts (full shift)`);
-console.log(`   → ${staffByType.regularHostsShortShift.length} Regular Hosts (short shift 09:15-13:00)`);
-console.log(`   → ${staffByType.regularHostsMidShift.length} Regular Hosts (mid shift for break cover)`);
+console.log(`   â†’ ${staffByType.seniorHostsFullShift.length} Senior Hosts (full shift)`);
+console.log(`   â†’ ${staffByType.regularHostsFullShift.length} Regular Hosts (full shift)`);
+console.log(`   â†’ ${staffByType.regularHostsShortShift.length} Regular Hosts (short shift 09:15-13:00)`);
+console.log(`   â†’ ${staffByType.regularHostsMidShift.length} Regular Hosts (mid shift for break cover)`);
 
-// ✅ PRIORITY UNITS FOR COVERAGE
+// âœ… PRIORITY UNITS FOR COVERAGE
 const PRIORITY_UNITS = {
   seniorHost: ['Lodge Entrance', 'Adventures Point Gift Shop', 'Sweet Shop'],
   allDayCoverage: ['Lodge Entrance', 'Adventures Point Gift Shop', 'Sealife', 'Sweet Shop'],
@@ -3214,10 +3218,10 @@ const PRIORITY_UNITS = {
 };
 
 // ============================================================================
-// PRE-STEP 1: Azteca Entrance (08:30–10:00) → Lodge (10:00–11:00) → Break → Free
+// PRE-STEP 1: Azteca Entrance (08:30â€“10:00) â†’ Lodge (10:00â€“11:00) â†’ Break â†’ Free
 // Azteca closes at 10:00. Assign exactly 2 early 08:30 starters:
-//   08:30–10:00  Azteca Entrance
-//   10:00–11:00  Lodge Entrance (support)
+//   08:30â€“10:00  Azteca Entrance
+//   10:00â€“11:00  Lodge Entrance (support)
 //   11:00        Break (forced by Azteca override in break scheduler)
 //   After break  Routed via afternoon reassignment wherever needed
 // ============================================================================
@@ -3343,796 +3347,87 @@ const step4Result = assignRemainingHostsStep4({
 });
 assigned += step4Result.assignedCount;
 
-
-
-
 // ============================================================================
 // STEP 5: Assign Overflow Staff to Busy Units (Allow Overstaffing)
 // ============================================================================
-console.log(`\n   📍 STEP 5: Assigning overflow staff to busy units (allow overstaffing)...`);
+const step5Result = assignOverflowStaffStep5({
+  staffingRequirements,
+  staffByType,
+  assignedStaff,
+  assignments,
+  filledPositions,
+  zone,
+  dayCode,
+  skillsData,
+  hasSkillForUnit,
+  getCategoryFromUnit,
+  timeToMinutes,
+  canonicalizeUnitName
+});
+assigned += step5Result.assignedCount;
 
-// Separate short-shift (morning coverage for Lodge) from full-shift (APGS/Sweet Shop)
-const overflowStaff = [
-  ...staffByType.seniorHostsFullShift.filter(s => !assignedStaff.has(s.name)),
-  ...staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name)),
-  ...staffByType.regularHostsShortShift.filter(s => !assignedStaff.has(s.name))
-];
 
-console.log(`   Found ${overflowStaff.length} overflow retail staff to assign`);
-
-// ✅ Detect which entrances are open today (needed for dynamic overflow targets)
-const hasExplorer = staffingRequirements.some(r => r.unitName === 'Explorer Entrance');
-const hasSchools = staffingRequirements.some(r => r.unitName === 'Schools Entrance');
-const hasLodge = staffingRequirements.some(r => r.unitName === 'Lodge Entrance');
-
-console.log(`   🚪 Entrances open: ${hasLodge ? 'Lodge' : ''} ${hasExplorer ? 'Explorer' : ''} ${hasSchools ? 'Schools' : ''}`);
-
-// ✅ MINIMUM OVERFLOW TARGETS (dynamic based on which entrances are open)
-// NOTE: Lodge Entrance gets ALL "Home @1" staff first (unlimited), then other units get overflow
-let UNIT_OVERFLOW_TARGETS;
-
-if (hasExplorer && hasSchools) {
-  // Both Explorer and Schools open (e.g., Day Code G)
-  UNIT_OVERFLOW_TARGETS = {
-    'Explorer Entrance': 4,          // Priority entrance (baseline + 4 overflow = 5-6 total)
-    'Lodge Entrance': 3,             // Secondary entrance (baseline + 3 overflow = 4-5 total)
-    'Schools Entrance': 2,           // Additional Schools overflow (baseline varies + 2 = 5-6 total)
-    // Azteca excluded — closes at 10:00, staffed by pre-pass only
-    'Adventures Point Gift Shop': 2,
-    'Sweet Shop': 2,
-    'Sealife': 1,
-    'Explorer Supplies': 1,
-    'Ben & Jerry\'s': 2,
-    'Ben & Jerry\'s Kiosk': 1,
-    'Lorikeets': 1
-  };
-} else if (hasExplorer) {
-  // Explorer open, no Schools (Day Codes E, F, H, I)
-  UNIT_OVERFLOW_TARGETS = {
-    'Explorer Entrance': 4,          // Priority entrance (baseline 2-3 + 4 overflow = 5-6 total)
-    'Lodge Entrance': 2,             // Secondary (baseline 2 + 2 overflow = 3-4 total)
-    // Azteca excluded — closes at 10:00, staffed by pre-pass only
-    'Adventures Point Gift Shop': 2,
-    'Sweet Shop': 2,
-    'Sealife': 1,
-    'Explorer Supplies': 1,
-    'Ben & Jerry\'s': 2,
-    'Ben & Jerry\'s Kiosk': 1,
-    'Lorikeets': 1
-  };
-} else if (hasSchools) {
-  // Schools open, no Explorer (Day Codes B, C, D)
-  UNIT_OVERFLOW_TARGETS = {
-    'Lodge Entrance': 4,             // Priority entrance (baseline 2 + 4 overflow = 5-6 total)
-    'Schools Entrance': 2,           // Additional Schools overflow (baseline 4 + 2 = 5-6 total)
-    // Azteca excluded — closes at 10:00, staffed by pre-pass only
-    'Adventures Point Gift Shop': 2,
-    'Sweet Shop': 2,
-    'Sealife': 1,
-    'Explorer Supplies': 1,
-    'Ben & Jerry\'s': 2,
-    'Ben & Jerry\'s Kiosk': 1,
-    'Lorikeets': 1
-  };
-} else {
-  // Lodge only (Day Code A, K-N - quiet days)
-  UNIT_OVERFLOW_TARGETS = {
-    'Lodge Entrance': 1,             // Quiet day - minimal overflow (baseline 2 + 1 = 2-3 total)
-    // Azteca excluded — closes at 10:00, staffed by pre-pass only
-    'Adventures Point Gift Shop': 2,
-    'Sweet Shop': 2,
-    'Sealife': 1,
-    'Lorikeets': 1
-  };
-}
-
-// Track overflow count per unit for balanced distribution
-const overflowCount = {};
-
-// ✅ PRIORITY SYSTEM: Detect which entrances are open, prioritize accordingly
-// Explorer Days (E-I): Explorer Entrance takes priority (busier)
-// Schools Days (B-D): Lodge + Schools Entrance take priority
-// Lodge Only (A, K-N): Lodge priority
-const BUSY_DAY_CODES = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-const isBusyDay = BUSY_DAY_CODES.includes(dayCode);
-
-// Define ideal priority order based on what's open (hasExplorer, hasSchools, hasLodge defined earlier in Step 5)
-let IDEAL_PRIORITY_ORDER;
-if (hasExplorer && hasSchools) {
-  // Both Explorer and Schools (e.g., Day Code G)
-  IDEAL_PRIORITY_ORDER = ['Explorer Entrance', 'Lodge Entrance', 'Schools Entrance', 'Adventures Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
-} else if (hasExplorer) {
-  // Explorer open, no Schools (Day Codes E, F, H, I)
-  IDEAL_PRIORITY_ORDER = ['Explorer Entrance', 'Lodge Entrance', 'Adventures Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
-} else if (hasSchools) {
-  // Schools open, no Explorer (Day Codes B, C, D)
-  IDEAL_PRIORITY_ORDER = ['Lodge Entrance', 'Schools Entrance', 'Adventures Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
-} else {
-  // Lodge only (Day Code A, K-N - quiet days)
-  IDEAL_PRIORITY_ORDER = ['Adventures Point Gift Shop', 'Sweet Shop', 'Lodge Entrance', 'Sealife', 'Ben & Jerry\'s', 'Lorikeets'];
-}
-
-// ✅ FIX: Filter to only units that actually have requirements for this day code
-const availableUnits = staffingRequirements
-  .filter(r => 
-    r.position.includes('Host') && 
-    !r.position.includes('Senior Host') &&
-    !r.position.includes('Break Cover') &&
-    (r.unitName.includes('Entrance') || r.unitName.includes('Shop') || canonicalizeUnitName(r.unitName) === 'Sealife' || r.unitName.includes('Supplies') || r.unitName.includes('Jerry') || r.unitName.includes('Lorikeets'))
-  )
-  .map(r => r.unitName);
-
-const PRIORITY_ORDER = IDEAL_PRIORITY_ORDER.filter(unit => availableUnits.includes(unit));
-
-// Initialize overflow count for all available units
-for (const unit of availableUnits) {
-  overflowCount[unit] = 0;
-}
-
-console.log(`   📊 Day Code ${dayCode} = ${isBusyDay ? 'BUSY' : 'QUIET'} → Priority: ${PRIORITY_ORDER.slice(0, 3).join(', ')}...`);
-console.log(`   📋 Available units: ${availableUnits.join(', ')}`);
-
-for (const staff of overflowStaff) {
-  if (assignedStaff.has(staff.name)) continue;
-  
-  let targetUnit = null;
-  let positionLabel = 'Host (Overflow)';
-  
-  // ✅ SHORT-SHIFT STAFF (Home @1 - finish ≤14:00) → ALWAYS go to Lodge Entrance
-  const endHour = parseInt(staff.endTime.split(':')[0]);
-  if (endHour <= 14) {
-    // ALL short-shift staff go to Lodge (no cap for Home @1)
-    if (availableUnits.includes('Lodge Entrance')) {
-      targetUnit = 'Lodge Entrance';
-      positionLabel = 'Host (Morning)';
-      console.log(`   🏠 ${staff.name} (Home @${endHour - 12}): Short shift → Lodge morning coverage (ALWAYS)`);
-    } else {
-      console.log(`   ⚠️  ${staff.name}: Short shift but Lodge Entrance not available, trying fallback...`);
-    }
-  }
-  
-  // If no target yet (either full-shift or Lodge not available/at cap for short-shift)
-  if (!targetUnit) {
-    // ✅ Try priority units first, respecting unit-specific caps
-    for (const unitName of PRIORITY_ORDER) {
-      const unitCap = UNIT_OVERFLOW_TARGETS[unitName] || 2;
-      // ✅ Skill gate: B&J and B&J Kiosk require trained staff even in overflow
-      const BJ_UNITS = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk"]);
-      if (BJ_UNITS.has(unitName) && !hasSkillForUnit(staff.name, unitName, skillsData)) continue;
-      if (overflowCount[unitName] < unitCap) {
-        targetUnit = unitName;
-        break;
-      }
-    }
-    
-    // ✅ If all priority units at cap, try ANY available unit that hasn't hit cap
-    if (!targetUnit) {
-      for (const unitName of availableUnits) {
-        const unitCap = UNIT_OVERFLOW_TARGETS[unitName] || 2;
-        if (overflowCount[unitName] < unitCap) {
-          targetUnit = unitName;
-          console.log(`   📌 ${staff.name}: All priority units at cap, using fallback → ${unitName}`);
-          break;
-        }
-      }
-    }
-    
-    // ✅ PHASE 2 FALLBACK: If ALL units hit targets, distribute remaining staff round-robin (unlimited)
-    // This ensures NO staff are left unassigned
-    if (!targetUnit) {
-      // Find the unit with the lowest overflow count (round-robin distribution)
-      let minCount = Infinity;
-      for (const unitName of PRIORITY_ORDER) {
-        if (overflowCount[unitName] < minCount) {
-          minCount = overflowCount[unitName];
-          targetUnit = unitName;
-        }
-      }
-      
-      // If somehow still no target (shouldn't happen), use first available unit
-      if (!targetUnit && availableUnits.length > 0) {
-        targetUnit = availableUnits[0];
-      }
-      
-      if (targetUnit) {
-        const target = UNIT_OVERFLOW_TARGETS[targetUnit] || 2;
-        console.log(`   📌 ${staff.name}: All targets met, round-robin distribution → ${targetUnit} (${overflowCount[targetUnit] + 1} overflow, target was ${target})`);
-      }
-    }
-  }
-  
-  if (!targetUnit) {
-    console.log(`   ⚠️  ${staff.name}: ERROR - Could not find any available unit (this should not happen)`);
-    continue;
-  }
-  
-  const req = staffingRequirements.find(r => 
-    r.unitName === targetUnit && 
-    r.position.includes('Host') &&
-    !r.position.includes('Senior Host')
-  );
-  
-  if (req) {
-    assignments.push({
-      unit: req.unitName,
-      position: req.position,
-      positionType: positionLabel,
-      staff: staff.name,
-      zone: zone,
-      dayCode: dayCode,
-      trainingMatch: `${req.unitName}-Host-${endHour <= 14 ? 'Morning' : 'Overflow'}`,
-      startTime: staff.startTime,
-      endTime: staff.endTime,
-      breakMinutes: endHour <= 14 ? 0 : (staff.scheduledBreakMinutes || 0),  // No breaks for short shifts
-      isBreak: false,
-      category: getCategoryFromUnit(req.unitName)
+// ============================================================================
+// STEP 5b: Assign Break Cover Staff
+// ============================================================================
+const bcResult = assignBreakCoverStaff({
+  timegripData,
+  staffingRequirements,
+  assignedStaff,
+  assignments,
+  filledPositions,
+  zone,
+  dayCode,
+  skillsData,
+  hasSkillForUnit,
+  normalizeStaffName
+});
+assigned += bcResult.assignedCount;
+    // ============================================================================
+    // STEP 5c: Assign Remaining/Generic/GHI Staff
+    // ============================================================================
+    const remGenResult = assignRemainingGenericStaff({
+      timegripData,
+      staffingRequirements,
+      filledPositions,
+      assignedStaff,
+      assignments,
+      skillsData,
+      zone,
+      dayCode,
+      isStaffAvailableForTime,
+      getStaffWorkingHours,
+      normalizeStaffName,
+      staffHasSkill,
+      matchPositionToSkill,
+      getGenericSkillMatch
     });
-    
-    assignedStaff.add(staff.name);
-    overflowCount[targetUnit]++;
-    const unitCap = UNIT_OVERFLOW_TARGETS[targetUnit] || 2;
-    const label = endHour <= 14 ? 'MORNING' : `OVERFLOW #${overflowCount[targetUnit]}/${unitCap}`;
-    console.log(`   ✅ ${staff.name} → ${req.unitName} (${label}, ${staff.startTime}-${staff.endTime})`);
-    assigned++;
-  } else {
-    console.log(`   ⚠️  ${staff.name}: Could not find requirement for ${targetUnit}`);
-  }
-}
-
-// Build summary dynamically based on what units exist
-const summaryParts = [];
-let targetsExceeded = false;
-for (const unit of PRIORITY_ORDER) {
-  const shortName = unit.replace(' Entrance', '').replace('Adventures Point Gift Shop', 'APGS').replace('Sweet Shop', 'Sweet').replace('Ben & Jerry\'s', 'BJ').replace('Explorer Supplies', 'Exp Supp').replace('Ben & Jerry\'s Kiosk', 'BJ Kiosk');
-  const target = UNIT_OVERFLOW_TARGETS[unit] || 2;
-  const actual = overflowCount[unit] || 0;
-  
-  if (actual > target) {
-    summaryParts.push(`${shortName}=${actual}/${target}⬆️`);
-    targetsExceeded = true;
-  } else {
-    summaryParts.push(`${shortName}=${actual}/${target}`);
-  }
-}
-console.log(`\n   📊 Overflow distribution: ${summaryParts.join(', ')}`);
-if (targetsExceeded) {
-  console.log(`   📌 Note: ⬆️ indicates target exceeded (all staff assigned, no one left behind)`);
-}
-    
-    // Handle BREAK_COVER staff (Sam, Lydia)
-    const breakCoverStaff = timegripData.staffByFunction?.BREAK_COVER || [];
-    console.log(`   Found ${breakCoverStaff.length} break cover staff`);
-    
-    for (const timegripStaff of breakCoverStaff) {
-      if (assignedStaff.has(timegripStaff.name)) continue;
-      
-      let assigned_bc = false;
-      
-      // ✅ FIX #5: Use plannedFunction (set by parser) not scheduledFunction for break cover type
-      const breakCoverType = timegripStaff.plannedFunction || timegripStaff.scheduledFunction || '';
-      let matchingBreakCover = null;
-      
-      console.log(`  🔍 ${timegripStaff.name}: Break cover type = "${breakCoverType}"`);
-      
-      // Get all break cover positions (NO fill check - allow overstaffing)
-      // ✅ FIX #5B: Don't restrict by fill count; break cover should always match type
-      const breakCoverReqs = staffingRequirements.filter(req =>
-        (req.position.includes('Break Cover') || req.unitName.includes('Break Cover'))
-      );
-      
-      // Match to correct type based on TimeGrip
-      if (breakCoverType.includes('Retail')) {
-        matchingBreakCover = breakCoverReqs.find(req => req.unitName.includes('Retail Break Cover'));
-      } else if (breakCoverType.includes('Rides')) {
-        matchingBreakCover = breakCoverReqs.find(req => req.unitName.includes('Rides Break Cover'));
-      } else if (breakCoverType === '') {
-        // ✅ FIX #5: When scheduledFunction is empty, default to Retail Break Cover (more specific)
-        matchingBreakCover = breakCoverReqs.find(req => req.unitName.includes('Retail Break Cover'));
-      }
-      
-      // If type-specific match still not found, take any break cover
-      if (!matchingBreakCover && breakCoverReqs.length > 0) {
-        matchingBreakCover = breakCoverReqs[0];
-      }
-      
-      if (matchingBreakCover && breakCoverType.includes('Retail')) {
-        // ✅ FIX 21-24: Route Retail BC to understaffed unit as base (not just "Retail Break Cover")
-        // They'll rove from their base unit to cover breaks across retail
-        const BC_PLACEMENT_PRIORITY = [
-          'Adventures Point Gift Shop', 'Sweet Shop', "Ben & Jerry's",
-          'Explorer Supplies', 'Sealife', 'Lorikeets'
-        ];
-        // Target higher than enforcement minimums so BC staff still get placed
-        // APGS target 5 allows both BC persons to base here
-        const BC_UNIT_MINIMUMS = {
-          'Adventures Point Gift Shop': 5,
-          'Sweet Shop': 4,
-          "Ben & Jerry's": 3,
-          'Explorer Supplies': 2,
-          'Sealife': 2,
-          'Lorikeets': 2
-        };
-        // Only skill-gate truly specialized units
-        const SKILL_GATED_BC = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sweet Shop', 'Sealife']);
-
-        let bcBaseUnit = null;
-        let bcBaseReq = null;
-
-        console.log(`  🔍 BC placement debug for ${timegripStaff.name}:`);
-        for (const unitName of BC_PLACEMENT_PRIORITY) {
-          if (unitName === 'Sealife') {
-            const sealifeCount = assignments.filter(a => a.unit === 'Sealife' && !a.isBreak && a.staff !== 'UNFILLED').length;
-            if (sealifeCount >= 2) { console.log(`    ${unitName}: SKIP (Sealife hard cap)`); continue; }
-          }
-          if (SKILL_GATED_BC.has(unitName) && !hasSkillForUnit(timegripStaff.name, unitName, skillsData)) {
-            console.log(`    ${unitName}: SKIP (skill-gated — not trained)`);
-            continue;
-          }
-          const candidateReq = staffingRequirements.find(r =>
-            r.unitName === unitName && r.position.includes('Host') && !r.position.includes('Senior Host')
-          );
-          if (!candidateReq) { console.log(`    ${unitName}: SKIP (no req)`); continue; }
-          const currentCount = assignments.filter(a => a.unit === unitName && !a.isBreak && a.staff !== 'UNFILLED').length;
-          const minimum = BC_UNIT_MINIMUMS[unitName] || 2;
-          console.log(`    ${unitName}: count=${currentCount}, target=${minimum}, placing=${currentCount < minimum}`);
-          if (currentCount < minimum) {
-            bcBaseUnit = unitName;
-            bcBaseReq = candidateReq;
-            break;
-          }
-        }
-
-        if (bcBaseUnit && bcBaseReq) {
-          assignments.push({
-            unit: bcBaseUnit,
-            position: bcBaseReq.position,
-            positionType: 'Break Cover (Overflow)',
-            staff: timegripStaff.name,
-            zone: zone,
-            dayCode: dayCode,
-            trainingMatch: `${bcBaseUnit}-Break Cover`,
-            startTime: timegripStaff.startTime,
-            endTime: timegripStaff.endTime,
-            breakMinutes: 0,
-            isBreak: false,
-            isBreakCover: true
-          });
-          assignedStaff.add(timegripStaff.name);
-          console.log(`  ✅ ${timegripStaff.name} → ${bcBaseUnit} [Retail BC — based here, roams for cover]`);
-          assigned++;
-          assigned_bc = true;
-        } else {
-          // Fallback: stationary at Retail Break Cover
-          const req = matchingBreakCover;
-          assignments.push({
-            unit: req.unitName,
-            position: req.position,
-            positionType: 'Break Cover',
-            staff: timegripStaff.name,
-            zone: zone,
-            dayCode: dayCode,
-            trainingMatch: `${req.unitName}-Break Cover`,
-            startTime: timegripStaff.startTime,
-            endTime: timegripStaff.endTime,
-            breakMinutes: 0,
-            isBreak: false,
-            isBreakCover: true
-          });
-          assignedStaff.add(timegripStaff.name);
-          console.log(`  ✅ ${timegripStaff.name} → ${req.unitName} [Retail BC — stationary fallback]`);
-          assigned++;
-          assigned_bc = true;
-        }
-      } else if (matchingBreakCover) {
-        const req = matchingBreakCover;
-        assignments.push({
-          unit: req.unitName,
-          position: req.position,
-          positionType: 'Break Cover',
-          staff: timegripStaff.name,
-          zone: zone,
-          dayCode: dayCode,
-          trainingMatch: `${req.unitName}-Break Cover`,
-          startTime: timegripStaff.startTime,
-          endTime: timegripStaff.endTime,
-          breakMinutes: timegripStaff.scheduledBreakMinutes || 0,  // ✅ FIX #1d: Include break info
-          isBreak: false
-        });
-        assignedStaff.add(timegripStaff.name);
-        filledPositions.set(req.position, (filledPositions.get(req.position) || 0) + 1);
-        console.log(`  ✅ ${timegripStaff.name} → ${req.unitName} (${req.position}) [Break Cover]`);
-        assigned++;
-        assigned_bc = true;
-      }
-      
-      // If no break cover role, assign to admissions/retail to cover gaps
-      if (!assigned_bc) {
-        const fallbackReqs = staffingRequirements.filter(req => {
-          const isHost = req.position.includes('Host');
-          const isRetailAdmissions = req.unitName.includes('Entrance') || req.unitName.includes('Shop') || req.unitName === 'Sealife';
-          const hasCapacity = (filledPositions.get(req.position) || 0) < req.staffNeeded;
-          
-          if (!isHost || !isRetailAdmissions || !hasCapacity) return false;
-          
-          // ✅ BUG FIX #7b (ENHANCED): Check if position requires Senior Host
-          const requiresSeniorHost = req.position.includes('Senior Host');
-          
-          if (requiresSeniorHost) {
-            // ✅ BUG FIX #7b (ENHANCED): Dual verification - check BOTH Skills Matrix AND TimeGrip
-            // Method 1: Check Skills Matrix seniorHosts list
-            const inSkillsMatrix = skillsData.seniorHosts && skillsData.seniorHosts.some(sh => 
-              normalizeStaffName(sh) === normalizeStaffName(timegripStaff.name)
-            );
-            
-            // Method 2: Check TimeGrip plannedFunction field
-            const inTimeGrip = timegripStaff.plannedFunction && 
-                              timegripStaff.plannedFunction.includes('Senior Host');
-            
-            // Accept if EITHER source confirms Senior Host status (bulletproof!)
-            const isSeniorHost = inSkillsMatrix || inTimeGrip;
-            
-            return isSeniorHost;  // Only match if actually a Senior Host
-          }
-          
-          return true;  // Regular Host - anyone with HOST skill
-        }).sort((a, b) => {
-          const fillA = filledPositions.get(a.position) || 0;
-          const fillB = filledPositions.get(b.position) || 0;
-          return fillA - fillB;
-        });
-        
-        if (fallbackReqs.length > 0) {
-          const req = fallbackReqs[0];
-          assignments.push({
-            unit: req.unitName,
-            position: req.position,
-            positionType: 'Host (BC fallback)',
-            staff: timegripStaff.name,
-            zone: zone,
-            dayCode: dayCode,
-            trainingMatch: `${req.unitName}-Host`,
-            startTime: timegripStaff.startTime,
-            endTime: timegripStaff.endTime,
-            breakMinutes: timegripStaff.scheduledBreakMinutes || 0,  // ✅ FIX #1e: Include break info
-            isBreak: false
-          });
-          assignedStaff.add(timegripStaff.name);
-          filledPositions.set(req.position, (filledPositions.get(req.position) || 0) + 1);
-          console.log(`  ✅ ${timegripStaff.name} → ${req.unitName} (${req.position}) [Fallback from BC]`);
-          assigned++;
-        }
-      }
-    }
-    
-    // ✅ FIX #8: Handle GENERIC staff (Alex Hawkins) - try to match to Rides/suitable positions
-    const genericStaff = (timegripData.staffByFunction?.GENERIC || []).filter(s =>
-      !assignedStaff.has(s.name)
-    );
-    
-    if (genericStaff.length > 0) {
-      console.log(`   Found ${genericStaff.length} generic staff`);
-      
-      for (const timegripStaff of genericStaff) {
-        if (assignedStaff.has(timegripStaff.name)) continue;
-        
-        // Generic staff: try Rides positions first (most likely match)
-        const ridePositions = staffingRequirements.filter(req =>
-          req.unitName.includes('Rides') &&
-          !req.position.includes('Break Cover') &&
-          (filledPositions.get(req.position) || 0) < req.staffNeeded
-        );
-        
-        if (ridePositions.length > 0) {
-          // Sort by fill rate (unfilled first)
-          const sorted = ridePositions.sort((a, b) => {
-            const fillA = filledPositions.get(a.position) || 0;
-            const fillB = filledPositions.get(b.position) || 0;
-            return fillA - fillB;
-          });
-          
-          const req = sorted[0];
-          assignments.push({
-            unit: req.unitName,
-            position: req.position,
-            positionType: 'Rides (Generic)',
-            staff: timegripStaff.name,
-            zone: zone,
-            dayCode: dayCode,
-            trainingMatch: `${req.unitName}-Generic`,
-            startTime: timegripStaff.startTime,
-            endTime: timegripStaff.endTime,
-            breakMinutes: timegripStaff.scheduledBreakMinutes || 0,  // ✅ FIX #1f: Include break info
-            isBreak: false
-          });
-          
-          assignedStaff.add(timegripStaff.name);
-          filledPositions.set(req.position, (filledPositions.get(req.position) || 0) + 1);
-          console.log(`  ✅ ${timegripStaff.name} → ${req.unitName} (GENERIC)`);
-          assigned++;
-        }
-      }
-    }
-    
-    // ✅ PASS 2b: GHI Staff - Assign to ANY GHI position (allow overstaffing)
-    console.log('\n📋 PASS 2b: GHI Staff Assignment (Allow Overstaffing)');
-    
-    const ghiStaff = (timegripData.staffByFunction?.GENERIC || []).filter(s => 
-      s.plannedFunction?.includes('GHI') &&
-      !assignedStaff.has(s.name)
-    );
-    
-    console.log(`   Found ${ghiStaff.length} generic GHI staff`);
-    
-    for (const timegripStaff of ghiStaff) {
-      // Find ANY GHI position (NO fill check - allow overstaffing!)
-      const ghiPositions = staffingRequirements.filter(req =>
-        req.unitName.includes('GHI') &&
-        !req.unitName.includes('Break Cover')  // ✅ NO fill check!
-      );
-      
-      if (ghiPositions.length === 0) {
-        console.log(`  ⚠️  ${timegripStaff.name}: No GHI positions exist`);
-        continue;
-      }
-      
-      // Pick the least-filled position (to balance load)
-      const sorted = ghiPositions.sort((a, b) => {
-        const fillA = filledPositions.get(a.position) || 0;
-        const fillB = filledPositions.get(b.position) || 0;
-        return fillA - fillB;
-      });
-      
-      const requirement = sorted[0];
-      
-      // ✅ ASSIGN (allow overstaffing - no need to check if full)
-      assignments.push({
-        unit: requirement.unitName,
-        position: requirement.position,
-        positionType: 'Generic GHI (PASS 2b)',
-        staff: timegripStaff.name,
-        zone: zone,
-        dayCode: dayCode,
-        trainingMatch: 'GHI - flexible position',
-        startTime: timegripStaff.startTime,
-        endTime: timegripStaff.endTime,
-        breakMinutes: timegripStaff.scheduledBreakMinutes || 0,
-        isBreak: false
-      });
-      
-      assignedStaff.add(timegripStaff.name);
-      filledPositions.set(requirement.position, (filledPositions.get(requirement.position) || 0) + 1);
-      
-      console.log(`  ✅ ${timegripStaff.name} → ${requirement.unitName} (${requirement.position})`);
-      assigned++;
-    }
-    
-    // ✅ PASS 3: Flexible Generic Skill Matching
-    console.log('\n📋 PASS 3: Flexible Generic Skill Matching');
-    const stillUnfilled = staffingRequirements.filter(req => {
-      const filled = filledPositions.get(req.position) || 0;
-      return filled < req.staffNeeded && !req.position.toLowerCase().includes('break cover');
-    });
-    
-    if (stillUnfilled.length > 0) {
-      const stillUnassigned = skillsData.staffWithGreen.filter(s => !assignedStaff.has(s.name));
-      
-      if (stillUnassigned.length > 0) {
-        console.log(`\n🔄 Found ${stillUnassigned.length} unassigned staff and ${stillUnfilled.length} unfilled positions\n`);
-        
-        for (const staff of stillUnassigned) {
-          if (assignedStaff.has(staff.name)) continue;
-          
-          if (!isStaffAvailableForTime(staff.name, '08:00', '16:00', timegripData)) continue;
-          
-          const workingHours = getStaffWorkingHours(staff.name, timegripData);
-          if (!workingHours) continue;
-          
-          let matched = false;
-          
-          for (const req of stillUnfilled) {
-            if (matched) break;
-            if ((filledPositions.get(req.position) || 0) >= req.staffNeeded) continue;
-            
-            if (staffHasSkill(staff, req.unitName, req.position)) {
-              const normalizedSearchName = normalizeStaffName(staff.name);
-              const timegripStaff = timegripData.workingStaff.find(s => {
-                const normalizedWorkingName = normalizeStaffName(s.name);
-                return normalizedWorkingName === normalizedSearchName;
-              });
-              const staffDisplayName = timegripStaff ? timegripStaff.name : staff.name;
-              
-              const skillType = matchPositionToSkill(req.position);
-              const genericSkill = getGenericSkillMatch(req.unitName, req.position);
-              const trainingMatch = genericSkill || `${req.unitName}-${skillType}`;
-              
-              assignments.push({
-                unit: req.unitName,
-                position: req.position,
-                positionType: skillType,
-                staff: staffDisplayName,
-                zone: zone,
-                dayCode: dayCode,
-                trainingMatch: trainingMatch,
-                startTime: workingHours.startTime,
-                endTime: workingHours.endTime,
-                breakMinutes: workingHours.breakMinutes || 0,  // ✅ FIX #1f: Include break info
-                isBreak: false
-              });
-              
-              assignedStaff.add(staff.name);
-              filledPositions.set(req.position, (filledPositions.get(req.position) || 0) + 1);
-              console.log(`  ✅ ${staff.name} → ${req.unitName} (flexible ${trainingMatch}) ${workingHours.startTime}-${workingHours.endTime}`);
-              matched = true;
-              assigned++;
-            }
-          }
-          
-          if (!matched) {
-            console.log(`  ⚠️  ${staff.name} has no matching unfilled positions`);
-          }
-        }
-      }
-    }
+    assigned += remGenResult.assignedCount;
 
     // ============================================================================
-// SMART BREAK COVERAGE ANALYSIS
-// ============================================================================
-
-console.log('\n📊 Analyzing break coverage needs...');
-
-// Step 1: Build coverage map - who's working where, when
-const coverageMap = new Map(); // unit -> time slot -> count
-
-for (const assignment of assignments) {
-  if (assignment.isBreak || assignment.unit === 'Zonal Lead') continue;
-  
-  const unit = assignment.unit;
-  const startMin = timeToMinutes(assignment.startTime);
-  const endMin = timeToMinutes(assignment.endTime);
-  
-  // Create 15-minute slots from 10:00 to 17:00
-  for (let time = 600; time < 1020; time += 15) {
-    if (time >= startMin && time < endMin) {
-      const timeKey = `${unit}-${minutesToTime(time)}`;
-      if (!coverageMap.has(timeKey)) {
-        coverageMap.set(timeKey, new Set());
-      }
-      coverageMap.get(timeKey).add(assignment.staff);
-    }
-  }
-}
-
-// Step 2: Identify coverage gaps (units dropping below minimum)
-const coverageGaps = [];
-
-const MINIMUM_STAFF_REQUIRED = {
-  'Lodge Entrance': 2,
-  'Explorer Entrance': 2,
-  'Adventures Point Gift Shop': 2,
-  'Sweet Shop': 2,
-  'Sealife': 1,
-  'Lorikeets': 1,
-  "Ben & Jerry's": 1,
-  'Explorer Supplies': 1
-};
-
-for (const [unitTimeKey, staffSet] of coverageMap.entries()) {
-  const [unit, timeSlot] = unitTimeKey.split('-');
-  const minimumRequired = MINIMUM_STAFF_REQUIRED[unit];
-  
-  if (!minimumRequired) continue;
-  
-  if (staffSet.size < minimumRequired) {
-    coverageGaps.push({
-      unit,
-      timeSlot,
-      currentStaff: staffSet.size,
-      requiredStaff: minimumRequired,
-      gap: minimumRequired - staffSet.size
+    // STEP 5d: Smart Break Coverage Analysis
+    // ============================================================================
+    const coverageResult = analyzeBreakCoverageSmart({
+      assignments,
+      breakCoverStaffAssignments: assignments.filter(a => a.isBreakCover),
+      timeToMinutes,
+      minutesToTime,
+      zone,
+      dayCode
     });
-  }
-}
-
-console.log(`   Found ${coverageGaps.length} coverage gaps`);
-
-if (coverageGaps.length > 0) {
-  // Show sample gaps
-  const sampleGaps = coverageGaps.slice(0, 5);
-  for (const gap of sampleGaps) {
-    console.log(`   ⚠️  ${gap.unit} at ${gap.timeSlot}: ${gap.currentStaff}/${gap.requiredStaff} staff (need ${gap.gap} more)`);
-  }
-  if (coverageGaps.length > 5) {
-    console.log(`   ... and ${coverageGaps.length - 5} more gaps`);
-  }
-}
-
-// Step 3: Use break cover staff to fill gaps
-console.log('\n🔄 Assigning break cover to fill gaps...');
-
-const breakCoverStaffAvailable = assignments.filter(a => 
-  a.isBreakCover && 
-  a.startTime === '11:00' && 
-  a.endTime === '15:00'
-);
-
-console.log(`   Available break cover staff: ${breakCoverStaffAvailable.length}`);
-
-// Group gaps by time slot
-const gapsByTimeSlot = {};
-for (const gap of coverageGaps) {
-  if (!gapsByTimeSlot[gap.timeSlot]) {
-    gapsByTimeSlot[gap.timeSlot] = [];
-  }
-  gapsByTimeSlot[gap.timeSlot].push(gap);
-}
-
-// Assign break cover staff to rotate through gaps
-const breakCoverRotations = [];
-let bcIndex = 0;
-
-const bcWindowStart = breakCoverStaffAvailable.length > 0
-  ? Math.min(...breakCoverStaffAvailable.map((a) => timeToMinutes(a.startTime)))
-  : null;
-const bcWindowEnd = breakCoverStaffAvailable.length > 0
-  ? Math.max(...breakCoverStaffAvailable.map((a) => timeToMinutes(a.endTime)))
-  : null;
-
-for (const [timeSlot, gaps] of Object.entries(gapsByTimeSlot)) {
-  const slotStart = timeToMinutes(timeSlot);
-  if (bcWindowStart !== null && bcWindowEnd !== null && (slotStart < bcWindowStart || slotStart >= bcWindowEnd)) {
-    continue;
-  }
-
-  for (const gap of gaps) {
-    if (bcIndex >= breakCoverStaffAvailable.length) break;
-    
-    const bcStaff = breakCoverStaffAvailable[bcIndex % breakCoverStaffAvailable.length];
-    
-    breakCoverRotations.push({
-      staff: bcStaff.staff,
-      unit: gap.unit,
-      startTime: timeSlot,
-      endTime: minutesToTime(timeToMinutes(timeSlot) + 30), // 30-min coverage
-      reason: `Coverage gap: ${gap.currentStaff}/${gap.requiredStaff} staff`
-    });
-    
-    bcIndex++;
-  }
-}
-
-console.log(`   Created ${breakCoverRotations.length} break cover rotations`);
-
-// Add rotations to assignments
-for (const rotation of breakCoverRotations) {
-  assignments.push({
-    unit: rotation.unit,
-    position: `${rotation.unit} - Break Cover`,
-    staff: rotation.staff,
-    startTime: rotation.startTime,
-    endTime: rotation.endTime,
-    isBreak: false,
-    isBreakCover: true,
-    zone: zone,
-    dayCode: dayCode,
-    trainingMatch: 'Smart Break Cover',
-    positionType: 'Break Cover (Gap Fill)'
-  });
-  
-  console.log(`   ✅ ${rotation.staff} → ${rotation.unit} (${rotation.startTime}-${rotation.endTime})`);
-}
     
     // ✅ FIX #7: Enforce assignment for staff who CANNOT be left alone
     // These staff must have a position, never left unassigned
-    console.log('\n📋 FIX #7: Enforce Assignment for Special Staff (Cannot Be Left Alone)');
+    console.log('\nðŸ“‹ FIX #7: Enforce Assignment for Special Staff (Cannot Be Left Alone)');
     
     for (const specialStaff of STAFF_CANNOT_BE_LEFT_ALONE) {
-      // ✅ FIX #5b: Only force-assign if this person exists in CURRENT ZONE's Skills Matrix
+      // âœ… FIX #5b: Only force-assign if this person exists in CURRENT ZONE's Skills Matrix
       const existsInThisZone = skillsData.staffWithGreen.some(s => 
         normalizeStaffName(s.name) === normalizeStaffName(specialStaff)
       );
       
       if (!existsInThisZone) {
-        console.log(`  ⏭️  ${specialStaff}: Not in ${teamName} Skills Matrix - skipping`);
+        console.log(`  â­ï¸  ${specialStaff}: Not in ${teamName} Skills Matrix - skipping`);
         continue;
       }
       
@@ -4140,13 +3435,13 @@ for (const rotation of breakCoverRotations) {
         // Already assigned, all good
         const assigned_obj = assignments.find(a => a.staff === specialStaff);
         if (assigned_obj) {
-          console.log(`  ✅ ${specialStaff}: Already assigned to ${assigned_obj.unit}`);
+          console.log(`  âœ… ${specialStaff}: Already assigned to ${assigned_obj.unit}`);
         }
         continue;
       }
       
       // Special staff is NOT assigned - MUST find a position for them
-      console.log(`  🚨 ${specialStaff}: NOT ASSIGNED - Finding any available position...`);
+      console.log(`  ðŸš¨ ${specialStaff}: NOT ASSIGNED - Finding any available position...`);
       
       // Get ANY position that still needs staff (not full)
       const anyAvailable = staffingRequirements.find(req => 
@@ -4182,28 +3477,28 @@ for (const rotation of breakCoverRotations) {
         
         assignedStaff.add(specialStaff);
         filledPositions.set(anyAvailable.position, (filledPositions.get(anyAvailable.position) || 0) + 1);
-        console.log(`  ✅ ${specialStaff} → ${anyAvailable.unitName} (${anyAvailable.position}) [FORCED ASSIGNMENT]`);
+        console.log(`  âœ… ${specialStaff} â†’ ${anyAvailable.unitName} (${anyAvailable.position}) [FORCED ASSIGNMENT]`);
         assigned++;
       } else {
-        console.log(`  ❌ ${specialStaff}: NO AVAILABLE POSITIONS - CRITICAL ERROR, cannot be left unassigned`);
+        console.log(`  âŒ ${specialStaff}: NO AVAILABLE POSITIONS - CRITICAL ERROR, cannot be left unassigned`);
       }
     }
     
     // ================================================================================
-    // ✅ PASS 0 (V11 REVISED): Calculate Breaks & Find Late Arrival Coverage
+    // âœ… PASS 0 (V11 REVISED): Calculate Breaks & Find Late Arrival Coverage
     // ================================================================================
     // NOW RUNS AFTER PASS 1-3 so all staff assignments are complete!
     
-    console.log('\n📋 PASS 0 (V11): Calculate Break Times & Find Late Arrival Coverage');
+    console.log('\nðŸ“‹ PASS 0 (V11): Calculate Break Times & Find Late Arrival Coverage');
     
     // Step 1: Calculate all breaks needed
-    console.log('\n🕐 Calculating mandatory break times for assigned staff...');
+    console.log('\nðŸ• Calculating mandatory break times for assigned staff...');
     const breaksNeeded = calculateAllBreaksNeeded(assignments, timegripData);
     console.log(`   Found ${breaksNeeded.length} breaks to schedule\n`);
     
     if (breaksNeeded.length > 0) {
       for (const br of breaksNeeded.slice(0, 10)) {
-        console.log(`  ☕ ${br.staff} (${br.unit}): ${br.startTime}-${br.endTime}`);
+        console.log(`  â˜• ${br.staff} (${br.unit}): ${br.startTime}-${br.endTime}`);
       }
       if (breaksNeeded.length > 10) {
         console.log(`  ... and ${breaksNeeded.length - 10} more`);
@@ -4211,7 +3506,7 @@ for (const rotation of breakCoverRotations) {
     }
     
     // Step 2: Find late arrivals
-    console.log(`\n🔄 Matching late arrivals (≥10:00) to provide break coverage...`);
+    console.log(`\nðŸ”„ Matching late arrivals (â‰¥10:00) to provide break coverage...`);
     const lateArrivals = skillsData.staffWithGreen.filter(staff => {
       if (assignedStaff.has(staff.name)) return false;
       const workingHours = getStaffWorkingHours(staff.name, timegripData);
@@ -4226,15 +3521,15 @@ for (const rotation of breakCoverRotations) {
     const breakCoverResult = findBreakCover(breaksNeeded, lateArrivals, assignedStaff, timegripData, skillsData, zone, dayCode, normalizeStaffName);
     const breakCoverAssignments = breakCoverResult.assignments;
     
-    console.log(`\n✅ Break coverage results:`);
+    console.log(`\nâœ… Break coverage results:`);
     console.log(`   ${breakCoverResult.covered}/${breakCoverResult.total} breaks covered by late arrivals`);
     if (breakCoverResult.uncovered > 0) {
-      console.log(`   ⚠️  ${breakCoverResult.uncovered} breaks without coverage`);
+      console.log(`   âš ï¸  ${breakCoverResult.uncovered} breaks without coverage`);
     }
     
-    // ✅ FIX: Use Zonal Leads to cover uncovered retail/admissions breaks
+    // âœ… FIX: Use Zonal Leads to cover uncovered retail/admissions breaks
     if (breakCoverResult.uncovered > 0) {
-      console.log(`\n🔑 Attempting to use Zonal Leads for uncovered breaks...`);
+      console.log(`\nðŸ”‘ Attempting to use Zonal Leads for uncovered breaks...`);
       const zonalLeadStaffForBreaks = timegripData.staffByFunction?.MANAGEMENT || [];
       const usedZonalLeadsForBreaks = new Set();
       let zonalLeadsCovered = 0;
@@ -4286,19 +3581,19 @@ for (const rotation of breakCoverRotations) {
           
           usedZonalLeadsForBreaks.add(availableLead.name);
           zonalLeadsCovered++;
-          console.log(`   ✅ ${availableLead.name} (Zonal Lead) → ${breakNeeded.unit} (${breakNeeded.startTime}-${breakNeeded.endTime})`);
+          console.log(`   âœ… ${availableLead.name} (Zonal Lead) â†’ ${breakNeeded.unit} (${breakNeeded.startTime}-${breakNeeded.endTime})`);
         }
       }
       
       if (zonalLeadsCovered > 0) {
-        console.log(`   ✅ Zonal Leads covered ${zonalLeadsCovered} additional breaks`);
+        console.log(`   âœ… Zonal Leads covered ${zonalLeadsCovered} additional breaks`);
       } else {
-        console.log(`   ⚠️  No available Zonal Leads with matching skills`);
+        console.log(`   âš ï¸  No available Zonal Leads with matching skills`);
       }
     }
     
-    // ✅ FIX #9: Smart break cover assignment to specific units during specific breaks
-    // ✅ FIX: Check BOTH plannedFunction and scheduledFunction for BC staff
+    // âœ… FIX #9: Smart break cover assignment to specific units during specific breaks
+    // âœ… FIX: Check BOTH plannedFunction and scheduledFunction for BC staff
     // BC staff have their function in scheduledFunction, not plannedFunction
     const availableBreakCoverStaff = timegripData.workingStaff.filter(s => {
       const funcType = s.plannedFunction || s.scheduledFunction || '';
@@ -4306,9 +3601,9 @@ for (const rotation of breakCoverRotations) {
     });
     const smartBreakCoverAssignments = assignSmartBreakCover(assignments, breaksNeeded, availableBreakCoverStaff, timegripData, skillsData);
     
-    // ✅ FIX #6: Stagger breaks BEFORE splitting to avoid gaps
-    // Calculate staggered breaks first (e.g., 11:00 → 12:00)
-    console.log(`\n🔄 Applying Break Staggering Logic...`);
+    // âœ… FIX #6: Stagger breaks BEFORE splitting to avoid gaps
+    // Calculate staggered breaks first (e.g., 11:00 â†’ 12:00)
+    console.log(`\nðŸ”„ Applying Break Staggering Logic...`);
     const staggerResult = staggerBreaksByUnit(assignments);
     const staggeredBreakMap = new Map();
     
@@ -4341,7 +3636,7 @@ for (const rotation of breakCoverRotations) {
       for (const [staff, staggered] of staggeredBreakMap) {
         const original = breaksNeeded.find(b => b.staff === staff);
         if (original && original.startTime !== staggered.startTime) {
-          console.log(`  🔄 ${staff} (${staggered.unit}): ${original.startTime}-${original.endTime} → ${staggered.startTime}-${staggered.endTime}`);
+          console.log(`  ðŸ”„ ${staff} (${staggered.unit}): ${original.startTime}-${original.endTime} â†’ ${staggered.startTime}-${staggered.endTime}`);
         }
       }
     }
@@ -4350,11 +3645,11 @@ for (const rotation of breakCoverRotations) {
     const splitAndCoveredAssignments = [
       ...splitAssignmentsAroundBreaks(assignments, finalBreaksToSplit),
       ...breakCoverAssignments,
-      ...smartBreakCoverAssignments  // ✅ FIX #9: Add smart break cover assignments
+      ...smartBreakCoverAssignments  // âœ… FIX #9: Add smart break cover assignments
     ];
     
-    // ✅ STEP 6: Afternoon Reassignment (Entrances → Retail After Breaks)
-    console.log('\n🔄 Step 6: Reassigning entrance overflow staff to retail after breaks...');
+    // âœ… STEP 6: Afternoon Reassignment (Entrances â†’ Retail After Breaks)
+    console.log('\nðŸ”„ Step 6: Reassigning entrance overflow staff to retail after breaks...');
     const reassignedAssignments = reassignEntranceStaffAfternoon(
       splitAndCoveredAssignments, 
       staffingRequirements, 
@@ -4369,8 +3664,8 @@ for (const rotation of breakCoverRotations) {
     assignments.push(...finalAssignmentsBeforeStats);
     assigned = finalAssignmentsBeforeStats.filter(a => a.staff !== 'UNFILLED').length;
     
-    // ✅ FIX: Use zonal leads to fill unfilled positions
-    console.log('\n📋 Deploying Zonal Leads to fill gaps...');
+    // âœ… FIX: Use zonal leads to fill unfilled positions
+    console.log('\nðŸ“‹ Deploying Zonal Leads to fill gaps...');
     const zonalLeadStaff = timegripData.staffByFunction?.MANAGEMENT || [];
     const unfilledPositions = [];
     
@@ -4413,7 +3708,7 @@ for (const rotation of breakCoverRotations) {
               breakMinutes: availableLead.scheduledBreakMinutes || 0,
               isBreak: false
             });
-            console.log(`   ✅ ${availableLead.name} deployed to ${unfilled.unit} (${availableLead.startTime}-${availableLead.endTime})`);
+            console.log(`   âœ… ${availableLead.name} deployed to ${unfilled.unit} (${availableLead.startTime}-${availableLead.endTime})`);
             assigned++;
           }
         }
@@ -4423,10 +3718,10 @@ for (const rotation of breakCoverRotations) {
     const totalNeeded = staffingRequirements.reduce((sum, req) => sum + req.staffNeeded, 0);
     console.log(`\n=== COMPLETE: ${assigned}/${totalNeeded} assigned ===\n`);
     
-    // ✅ V13: Sort assignments alphabetically by staff name
+    // âœ… V13: Sort assignments alphabetically by staff name
     assignments.sort((a, b) => a.staff.localeCompare(b.staff));
     
-    // ✅ FIX #3: Create staffList from BOTH assigned AND unassigned staff
+    // âœ… FIX #3: Create staffList from BOTH assigned AND unassigned staff
     const uniqueStaffNames = new Set();
     const sortedStaffList = [];
     const allWorkingStaff = timegripData.workingStaff || [];
@@ -4439,7 +3734,7 @@ for (const rotation of breakCoverRotations) {
       }
     }
     
-    // ✅ FIX #9: Replace hardcoded reasons with dynamically tracked reasons
+    // âœ… FIX #9: Replace hardcoded reasons with dynamically tracked reasons
     // Step 2: Add UNASSIGNED staff (explain why not assigned)
     // Use the assignment failure reasons tracked during PASS 1-3
     // If no tracked reason exists, default to generic message
@@ -4495,10 +3790,10 @@ for (const rotation of breakCoverRotations) {
 // BUG #15: DETECT BRIEFING STAFF
 // ============================================================================
 
-// ✅ BUG #15: Add briefing flag to assignments
-console.log('🎙️ Detecting briefing attendees...');
+// âœ… BUG #15: Add briefing flag to assignments
+console.log('ðŸŽ™ï¸ Detecting briefing attendees...');
 const briefingStaff = detectBriefingStaff(assignments);
-console.log(`   ✅ ${briefingStaff.size} staff attending 09:15 briefing\n`);
+console.log(`   âœ… ${briefingStaff.size} staff attending 09:15 briefing\n`);
 
 // Add hasBriefing flag to each relevant assignment
 assignments.forEach(assignment => {
@@ -4537,10 +3832,10 @@ const scheduleData = {
     totalPositions: totalNeeded,
     fillRate: totalNeeded > 0 ? Math.round((assigned / totalNeeded) * 100) : 0
   },
-  parkWideUnits: parkWideUnits,  // ✅ BUG #15: Add park-wide units
-  explorerColor: '#DA9694',  // ✅ Color for Explorer-related units (Explorer Entrance only)
+  parkWideUnits: parkWideUnits,  // âœ… BUG #15: Add park-wide units
+  explorerColor: '#DA9694',  // âœ… Color for Explorer-related units (Explorer Entrance only)
   explorerUnits: ['Explorer Entrance'],  // Units to highlight with Explorer color (pink)
-  seniorHostStaff: skillsData.seniorHosts || []  // ✅ Senior Host names for Excel highlighting
+  seniorHostStaff: skillsData.seniorHosts || []  // âœ… Senior Host names for Excel highlighting
 };
     
     // Generate Excel buffer
@@ -4566,7 +3861,7 @@ const scheduleData = {
   }
 });
 
-// ✅ Serve React frontend build in production
+// âœ… Serve React frontend build in production
 const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'build');
 if (fs.existsSync(frontendBuildPath)) {
   app.use(express.static(frontendBuildPath));
@@ -4574,12 +3869,12 @@ if (fs.existsSync(frontendBuildPath)) {
   app.get('*', (req, res) => {
     res.sendFile(path.join(frontendBuildPath, 'index.html'));
   });
-  console.log(`✅ Serving React frontend from ${frontendBuildPath}`);
+  console.log(`âœ… Serving React frontend from ${frontendBuildPath}`);
 }
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`✅ Break Scheduler V11.0 Backend running on port ${PORT}`);
-  console.log(`📁 Zone data folder: zone-data/`);
-  console.log(`🕐 Features: Competency-based breaks + Fixed slot breaks + Late arrival coverage`);
+  console.log(`âœ… Break Scheduler V11.0 Backend running on port ${PORT}`);
+  console.log(`ðŸ“ Zone data folder: zone-data/`);
+  console.log(`ðŸ• Features: Competency-based breaks + Fixed slot breaks + Late arrival coverage`);
 });
