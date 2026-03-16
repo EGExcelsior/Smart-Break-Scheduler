@@ -3,6 +3,95 @@
 // FIXED: Now reads Column A for unit names (not Column B)
 
 const XLSX = require('xlsx');
+const { toTrimmedString, toLowerTrimmed } = require('./parserUtils');
+
+const DAY_CODE_HEADER_ROW_INDEX = 7;
+const UNIT_NAME_COLUMN_INDEX = 0;
+const POSITION_COLUMN_INDEX = 1;
+const DATA_START_ROW_INDEX = 11;
+const MAX_REASONABLE_STAFF_COUNT = 10;
+
+function discoverDayCodeSections(headerRow) {
+  const dayCodeSections = [];
+
+  for (let col = 0; col < headerRow.length; col++) {
+    const header = toTrimmedString(headerRow[col]);
+
+    // Day codes are single uppercase letters A-O
+    if (/^[A-O]$/.test(header)) {
+      const label = toTrimmedString(headerRow[col + 1] || header);
+
+      dayCodeSections.push({
+        code: header,
+        startCol: col,
+        label,
+        // Staffing columns are typically 3-4 columns after day code start
+        staffingCol1: col + 3,
+        staffingCol2: col + 4
+      });
+    }
+  }
+
+  return dayCodeSections;
+}
+
+function getSectionStaffCount(rowData, section) {
+  const staffCount1 = rowData[section.staffingCol1] || 0;
+  const staffCount2 = rowData[section.staffingCol2] || 0;
+
+  if (typeof staffCount1 === 'number' && staffCount1 > 0) {
+    return staffCount1;
+  }
+
+  if (typeof staffCount2 === 'number' && staffCount2 > 0) {
+    return staffCount2;
+  }
+
+  return 0;
+}
+
+function extractSectionRequirements(data, section) {
+  const requirements = [];
+
+  for (let row = DATA_START_ROW_INDEX; row < data.length; row++) {
+    if (!data[row]) continue;
+
+    const unitName = data[row][UNIT_NAME_COLUMN_INDEX];
+    const position = data[row][POSITION_COLUMN_INDEX];
+
+    // Skip empty rows or header rows
+    if (!unitName || toTrimmedString(unitName) === '' || toLowerTrimmed(unitName) === 'none') {
+      continue;
+    }
+
+    const totalStaff = getSectionStaffCount(data[row], section);
+
+    if (totalStaff > 0 && totalStaff <= MAX_REASONABLE_STAFF_COUNT) {
+      const unitTrim = toTrimmedString(unitName);
+      const positionTrim = toTrimmedString(position);
+
+      // Only add if we haven't seen this exact combination for this day code
+      if (!requirements.find((r) => r.unitName === unitTrim && r.position === positionTrim)) {
+        requirements.push({
+          unitName: unitTrim,
+          position: positionTrim,
+          staffNeeded: totalStaff
+        });
+
+        console.log(`  ✅ ${unitTrim} (${positionTrim}): ${totalStaff} staff`);
+      }
+    }
+  }
+
+  return requirements;
+}
+
+function buildDayCodeOptions(dayCodeSections) {
+  return dayCodeSections.map((d) => ({
+    code: d.code,
+    label: `Day Code ${d.code} - ${d.label}`
+  }));
+}
 
 function parseZoneFile(filePath) {
   console.log(`\n📊 Parsing zone file for day codes and staffing requirements...`);
@@ -12,29 +101,8 @@ function parseZoneFile(filePath) {
   const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
   
   // Row 8 (index 7) has day code headers: A, B, C, D, E, etc.
-  const headerRow = data[7] || [];
-  
-  // Find day code column positions (A-O)
-  const dayCodeSections = [];
-  
-  for (let col = 0; col < headerRow.length; col++) {
-    const header = String(headerRow[col]).trim();
-    
-    // Day codes are single uppercase letters A-O
-    if (/^[A-O]$/.test(header)) {
-      // Get the label from the next column (e.g., "Lodge 4PM")
-      const label = String(headerRow[col + 1] || header).trim();
-      
-      dayCodeSections.push({
-        code: header,
-        startCol: col,
-        label: label, // ✅ NEW: Extract label
-        // Staffing columns are typically 3-4 columns after day code start
-        staffingCol1: col + 3, // First staff count column
-        staffingCol2: col + 4  // Second staff count column
-      });
-    }
-  }
+  const headerRow = data[DAY_CODE_HEADER_ROW_INDEX] || [];
+  const dayCodeSections = discoverDayCodeSections(headerRow);
   
   console.log(`🔍 Found day codes: ${dayCodeSections.map(d => `${d.code} (${d.label})`).join(', ')}`);
   
@@ -51,59 +119,12 @@ function parseZoneFile(filePath) {
   
   for (const section of dayCodeSections) {
     console.log(`\n📋 Parsing Day Code ${section.code} (${section.label}):`);
-    
-    const requirements = [];
-    
-    // Scan rows starting from row 12 (index 11) - first staff position
-    for (let row = 11; row < data.length; row++) {
-      if (!data[row]) continue;
-      
-      // ✅ FIXED: Read Column A (index 0) for unit name, Column B (index 1) for position
-      const unitName = data[row][0]; // Column A - Actual unit name (Room on the Broom, Adventure Tree, etc.)
-      const position = data[row][1]; // Column B - Staffed position (Rider - ROTB Attendant, etc.)
-      
-      // Skip empty rows or header rows
-      if (!unitName || String(unitName).trim() === '' || String(unitName).toLowerCase() === 'none') {
-        continue;
-      }
-      
-      // Get staffing count from the day code section
-      const staffCount1 = data[row][section.staffingCol1] || 0;
-      const staffCount2 = data[row][section.staffingCol2] || 0;
-      
-      // Use first non-zero count, or sum them if both exist
-      let totalStaff = 0;
-      if (typeof staffCount1 === 'number' && staffCount1 > 0) {
-        totalStaff = staffCount1;
-      } else if (typeof staffCount2 === 'number' && staffCount2 > 0) {
-        totalStaff = staffCount2;
-      }
-      
-      if (totalStaff > 0 && totalStaff <= 10) { // Sanity check
-        const unitTrim = String(unitName).trim();
-        const positionTrim = String(position).trim();
-        
-        // Only add if we haven't seen this exact combination for this day code
-        if (!requirements.find(r => r.unitName === unitTrim && r.position === positionTrim)) {
-          requirements.push({
-            unitName: unitTrim,
-            position: positionTrim,
-            staffNeeded: totalStaff
-          });
-          
-          console.log(`  ✅ ${unitTrim} (${positionTrim}): ${totalStaff} staff`);
-        }
-      }
-    }
-    
-    staffingRequirements[section.code] = requirements;
+
+    staffingRequirements[section.code] = extractSectionRequirements(data, section);
   }
   
   return {
-    dayCodeOptions: dayCodeSections.map(d => ({
-      code: d.code,
-      label: `Day Code ${d.code} - ${d.label}` // ✅ NEW: Include label
-    })),
+    dayCodeOptions: buildDayCodeOptions(dayCodeSections),
     staffingRequirements
   };
 }

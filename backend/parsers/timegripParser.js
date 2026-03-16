@@ -5,6 +5,7 @@
  */
 
 const fs = require('fs').promises;
+const { normalizeNameKey } = require('./parserUtils');
 
 function createEmptyAlerts() {
   return {
@@ -14,8 +15,27 @@ function createEmptyAlerts() {
   };
 }
 
-function normalizeNameKey(value) {
-  return (value || '').toString().trim().toLowerCase();
+function createEmptyStaffByFunction() {
+  return {
+    SPECIFIC: [],
+    BREAK_COVER: [],
+    GENERIC: [],
+    MANAGEMENT: []
+  };
+}
+
+function buildParseResult(workingStaff, staffByFunction, alerts = createEmptyAlerts()) {
+  return {
+    workingStaff,
+    totalStaff: workingStaff.length,
+    staffByFunction,
+    alerts: {
+      ...alerts,
+      absenceWithShiftCount: alerts.absenceWithShift.length,
+      absenceIncludedByOverrideCount: alerts.absenceIncludedByOverride.length,
+      absentStaffSkippedCount: alerts.absentStaffSkipped.length
+    }
+  };
 }
 
 async function parseTimegripCsv(filePath, targetTeam, targetDate = null, options = {}) {
@@ -51,6 +71,7 @@ async function parseTimegripCsv(filePath, targetTeam, targetDate = null, options
 
 function parseTabularCsv(lines, searchDate, options = {}) {
   const includeAbsentStaffNames = options.includeAbsentStaffNames || new Set();
+  const emptyStaffByFunction = createEmptyStaffByFunction();
   // Find header row
   let headerIndex = -1;
   let headers = [];
@@ -63,7 +84,7 @@ function parseTabularCsv(lines, searchDate, options = {}) {
   }
   
   if (headerIndex === -1) {
-    return { workingStaff: [], totalStaff: 0, staffByFunction: {} };
+    return buildParseResult([], emptyStaffByFunction);
   }
   
   // Find column indices
@@ -77,18 +98,13 @@ function parseTabularCsv(lines, searchDate, options = {}) {
   const absenceReasonIndex = headers.findIndex(h => h === 'Absence Reason');
   
   if (nameIndex === -1 || startTimeIndex === -1 || endTimeIndex === -1) {
-    return { workingStaff: [], totalStaff: 0, staffByFunction: {} };
+    return buildParseResult([], emptyStaffByFunction);
   }
   
   // Initialize result structures
   const workingStaff = [];
   const alerts = createEmptyAlerts();
-  const staffByFunction = {
-    SPECIFIC: [],
-    BREAK_COVER: [],
-    GENERIC: [],
-    MANAGEMENT: []
-  };
+  const staffByFunction = createEmptyStaffByFunction();
   
   // Parse data rows
   for (let i = headerIndex + 1; i < lines.length; i++) {
@@ -186,28 +202,13 @@ function parseTabularCsv(lines, searchDate, options = {}) {
     });
   }
   
-  return {
-    workingStaff,
-    totalStaff: workingStaff.length,
-    staffByFunction,  // ✅ CRUCIAL: Structured data for server.js
-    alerts: {
-      ...alerts,
-      absenceWithShiftCount: alerts.absenceWithShift.length,
-      absenceIncludedByOverrideCount: alerts.absenceIncludedByOverride.length,
-      absentStaffSkippedCount: alerts.absentStaffSkipped.length
-    }
-  };
+  return buildParseResult(workingStaff, staffByFunction, alerts);
 }
 
 function parseWorkplanFormat(lines, searchDate) {
   const workingStaff = [];
   const alerts = createEmptyAlerts();
-  const staffByFunction = {
-    SPECIFIC: [],
-    BREAK_COVER: [],
-    GENERIC: [],
-    MANAGEMENT: []
-  };
+  const staffByFunction = createEmptyStaffByFunction();
   
   let currentStaff = null;
   let inScheduleSection = false;
@@ -278,17 +279,7 @@ function parseWorkplanFormat(lines, searchDate) {
     }
   }
   
-  return {
-    workingStaff,
-    totalStaff: workingStaff.length,
-    staffByFunction,  // ✅ CRUCIAL: Structured data for server.js
-    alerts: {
-      ...alerts,
-      absenceWithShiftCount: 0,
-      absenceIncludedByOverrideCount: 0,
-      absentStaffSkippedCount: 0
-    }
-  };
+  return buildParseResult(workingStaff, staffByFunction, alerts);
 }
 
 module.exports = { parseTimegripCsv };

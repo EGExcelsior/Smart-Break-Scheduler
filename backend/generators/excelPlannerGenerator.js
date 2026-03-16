@@ -20,11 +20,20 @@ const {
   getUnitAbbreviation
 } = require('./excelPlannerConstants');
 const {
-  addSpacerRow,
+  renderPlannerHeaderSection,
+  renderPlannerLegend,
   renderZonalLeadsSection,
   renderIssuesSection,
   renderUnassignedSection
 } = require('./excelLayoutHelpers');
+const {
+  normalizeForMatching,
+  getUnitCategory,
+  groupStaffByUnit,
+  getSortedUnits,
+  splitStaffBySection
+} = require('./excelPlannerStaffUtils');
+const { buildSignificantTimeSlots } = require('./excelPlannerTimeUtils');
 
 // Helper function to check if a staff member is a Senior Host (with fuzzy name matching)
 function isSeniorHost(staffName, seniorHostList) {
@@ -32,7 +41,7 @@ function isSeniorHost(staffName, seniorHostList) {
   return seniorHostList.some(seniorName => namesMatch(staffName, seniorName));
 }
 
-function formatPositionName(unit, position, trainingMatch) {
+function formatPositionName(unit, position) {
   const category = getUnitCategory(unit);
   if (category !== 'Rides') {
     return getUnitAbbreviation(unit) || unit.toUpperCase();
@@ -46,33 +55,6 @@ function formatPositionName(unit, position, trainingMatch) {
   else if (posLower.includes('senior')) posType = 'SEN';
   else posType = position.substring(0, 3).toUpperCase();
   return `${rideName.toUpperCase()} - ${posType}`;
-}
-
-function generateTimeSlots(startTime, endTime, intervalMinutes = 15) {
-  const slots = [];
-  const [startHour, startMin] = startTime.split(':').map(Number);
-  const [endHour, endMin] = endTime.split(':').map(Number);
-  
-  let currentMinutes = startHour * 60 + startMin;
-  const endMinutes = endHour * 60 + endMin;
-  
-  while (currentMinutes <= endMinutes) {
-    const hours = Math.floor(currentMinutes / 60);
-    const mins = currentMinutes % 60;
-    slots.push(`${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`);
-    currentMinutes += intervalMinutes;
-  }
-  
-  return slots;
-}
-
-function normalizeForMatching(name) {
-  if (!name) return '';
-  return name
-    .toLowerCase()
-    .replace(/\s+(r&a|c|r|retail|rides|admissions)$/i, '')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 function getHomeLabel(endTime) {
@@ -249,9 +231,9 @@ function buildStaffRowValues(staffName, timeSlots, staffEndTime, lookup) {
       if (assignment.isBreak) {
         row.push('BREAK');
       } else if (assignment.isCovering) {
-        row.push(formatPositionName(assignment.coverageUnit, assignment.coveragePosition, false));
+        row.push(formatPositionName(assignment.coverageUnit, assignment.coveragePosition));
       } else {
-        row.push(formatPositionName(assignment.unit, assignment.position, assignment.trainingMatch));
+        row.push(formatPositionName(assignment.unit, assignment.position));
       }
     } else if (staffEndTime && timeSlot === staffEndTime) {
       row.push(getHomeLabel(staffEndTime));
@@ -333,59 +315,6 @@ function renderStaffTableSection({
   }
 }
 
-// ✅ NEW: Categorize unit type
-function getUnitCategory(unitName) {
-  const lower = unitName.toLowerCase();
-  
-  if (lower.includes('entrance') || lower.includes('admissions')) return 'Admissions';
-  if (lower.includes('shop') || lower.includes('retail') || lower.includes('kiosk') || 
-      lower.includes('sealife') || lower.includes('lorikeets') || lower.includes('ben') ||
-      lower.includes('explorer supplies')) return 'Retail';
-  if (lower.includes('car park')) return 'Car Parks';
-  if (lower.includes('ghi')) return 'GHI';
-  if (lower.includes('break cover')) return 'Break Cover';
-  
-  return 'Rides';
-}
-
-// ✅ NEW: Group staff by their primary unit
-function groupStaffByUnit(assignments, staffList) {
-  const unitGroups = new Map(); // unit name -> [staff names]
-  
-  // Calculate where each staff spends most time
-  for (const staff of staffList) {
-    if (staff.unassigned) continue;
-    
-    const staffAssignments = assignments.filter(a => 
-      normalizeForMatching(a.staff) === normalizeForMatching(staff.name) &&
-      !a.isBreak &&
-      a.unit !== 'Zonal Lead'
-    );
-    
-    if (staffAssignments.length === 0) continue;
-    
-    // Use the FIRST unit chronologically, skipping temporary pre-pass units like
-    // Azteca Entrance (which is always a short 08:30–10:00 stint before moving to Lodge).
-    // This keeps Amra/Lydia grouped with Lodge, while still fixing Explorer→Sweet interleaving.
-    const SKIP_AS_PRIMARY = new Set(['Azteca Entrance']);
-    const sortedByStart = staffAssignments.slice().sort((a, b) => {
-      const toMins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-      return toMins(a.startTime) - toMins(b.startTime);
-    });
-    const firstNonTemp = sortedByStart.find(a => !SKIP_AS_PRIMARY.has(a.unit));
-    let maxUnit = firstNonTemp?.unit || sortedByStart[0]?.unit || null;
-    
-    if (maxUnit) {
-      if (!unitGroups.has(maxUnit)) {
-        unitGroups.set(maxUnit, []);
-      }
-      unitGroups.get(maxUnit).push(staff.name);
-    }
-  }
-  
-  return { unitGroups };
-}
-
 async function generateExcelPlanner(scheduleData) {
   const {
     teamName,
@@ -420,48 +349,15 @@ async function generateExcelPlanner(scheduleData) {
   // ========================================================================
   // TITLE & INFO SECTION
   // ========================================================================
-  
-  worksheet.mergeCells('A1:G1');
-  const titleCell = worksheet.getCell('A1');
-  titleCell.value = `TEAM ${teamName.toUpperCase()} - BREAK PLANNER`;
-  titleCell.font = { size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
-  titleCell.fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FF4472C4' }
-  };
-  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-  worksheet.getRow(1).height = 25;
-  
-  worksheet.mergeCells('A2:G2');
-  const dateCell = worksheet.getCell('A2');
-  dateCell.value = `Date: ${new Date(date).toLocaleDateString('en-GB', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  })}`;
-  dateCell.font = { size: 12, bold: true };
-  dateCell.alignment = { horizontal: 'center' };
-  
-  worksheet.mergeCells('A3:G3');
-  const dayCodeCell = worksheet.getCell('A3');
-  dayCodeCell.value = `Day Code: ${dayCode} - ${dayCodeName}`;
-  dayCodeCell.font = { size: 11, italic: true };
-  dayCodeCell.alignment = { horizontal: 'center' };
-  
-  worksheet.mergeCells('A4:G4');
-  const statsCell = worksheet.getCell('A4');
-  statsCell.value = `Staff: ${staffList.length} | Positions Filled: ${statistics.filledCount}/${statistics.totalPositions} | Fill Rate: ${statistics.fillRate}%`;
-  statsCell.font = { size: 10 };
-  statsCell.alignment = { horizontal: 'center' };
-  statsCell.fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFE7E6E6' }
-  };
-  
-  addSpacerRow(worksheet, 6); // ✅ Thin spacer row
+
+  renderPlannerHeaderSection(worksheet, {
+    teamName,
+    date,
+    dayCode,
+    dayCodeName,
+    statsText: `Staff: ${staffList.length} | Positions Filled: ${statistics.filledCount}/${statistics.totalPositions} | Fill Rate: ${statistics.fillRate}%`,
+    mergeEndCol: TOP_SECTION_END_COL
+  });
   
   // ========================================================================
   // ZONAL LEADS SECTION
@@ -483,41 +379,8 @@ async function generateExcelPlanner(scheduleData) {
   // ========================================================================
   // TIME SLOTS
   // ========================================================================
-  
-  let earliestStart = '23:59';
-  let latestEnd = '00:00';
-  
-  for (const assignment of assignments) {
-    if (assignment.startTime < earliestStart) earliestStart = assignment.startTime;
-    if (assignment.endTime > latestEnd) latestEnd = assignment.endTime;
-  }
-  
-  if (earliestStart === '23:59') earliestStart = '08:30';
-  if (latestEnd === '00:00') latestEnd = '19:45';
-  
-  // ✅ SIGNIFICANT TIMES ONLY: Only show columns where something actually changes
-  // Collect all key moments: shift starts/ends, break starts/ends, briefing slot
-  const significantTimesSet = new Set();
 
-  for (const assignment of assignments) {
-    if (assignment.startTime) significantTimesSet.add(assignment.startTime);
-    if (assignment.endTime) significantTimesSet.add(assignment.endTime);
-    if (assignment.breakStart) significantTimesSet.add(assignment.breakStart);
-    if (assignment.breakEnd) significantTimesSet.add(assignment.breakEnd);
-  }
-
-  // Also include staffList start/end times
-  for (const staff of staffList) {
-    if (staff.startTime) significantTimesSet.add(staff.startTime);
-    if (staff.endTime) significantTimesSet.add(staff.endTime);
-  }
-
-  // Always include briefing time
-  significantTimesSet.add('09:15');
-
-  // Sort chronologically, only keep slots that align with 15-min grid within overall range
-  const allPossibleSlots = generateTimeSlots(earliestStart, latestEnd, 15);
-  const timeSlots = allPossibleSlots.filter(slot => significantTimesSet.has(slot));
+  const timeSlots = buildSignificantTimeSlots(assignments, staffList);
   
   // ========================================================================
   // ✅ GROUP STAFF BY UNIT
@@ -526,54 +389,13 @@ async function generateExcelPlanner(scheduleData) {
   const { unitGroups } = groupStaffByUnit(assignments, staffList);
   
   // Sort units by category
-  const sortedUnits = Array.from(unitGroups.keys()).sort((a, b) => {
-    const catA = getUnitCategory(a);
-    const catB = getUnitCategory(b);
-    
-    const categoryOrder = {
-      'Rides': 1,
-      'Retail': 2,
-      'Admissions': 3,
-      'Car Parks': 4,
-      'GHI': 5,
-      'Break Cover': 6
-    };
-    
-    const orderA = categoryOrder[catA] || 99;
-    const orderB = categoryOrder[catB] || 99;
-    
-    if (orderA !== orderB) return orderA - orderB;
-    return a.localeCompare(b);
-  });
+  const sortedUnits = getSortedUnits(unitGroups);
   
   // ========================================================================
   // ✅ SPLIT STAFF INTO RIDES AND RETAIL/ADMISSIONS/GHI SECTIONS
   // ========================================================================
 
-  // Separate staff by category
-  const ridesStaff = [];
-  const retailStaff = [];
-  const carParksGhiStaff = [];
-  
-  for (const unitName of sortedUnits) {
-    const staffInUnit = unitGroups.get(unitName);
-    if (!staffInUnit || staffInUnit.length === 0) continue;
-    
-    const category = getUnitCategory(unitName);
-    const isRidesSection = category === 'Rides' || unitName.toLowerCase().includes('rides break cover');
-    const isCarParksGhi = category === 'Car Parks' || category === 'GHI';
-    
-    let targetArray;
-    if (isRidesSection) targetArray = ridesStaff;
-    else if (isCarParksGhi) targetArray = carParksGhiStaff;
-    else targetArray = retailStaff;
-    
-    for (const staffName of staffInUnit) {
-      if (!targetArray.includes(staffName)) {
-        targetArray.push(staffName);
-      }
-    }
-  }
+  const { ridesStaff, retailStaff, carParksGhiStaff } = splitStaffBySection(sortedUnits, unitGroups);
   
   console.log(`📊 Split: ${ridesStaff.length} rides staff, ${retailStaff.length} retail/admissions staff, ${carParksGhiStaff.length} car parks/GHI staff`);
   
@@ -656,12 +478,11 @@ async function generateExcelPlanner(scheduleData) {
   // LEGEND
   // ========================================================================
   
-  addSpacerRow(worksheet, 6); // ✅ Thin spacer row
-  const legendRow = worksheet.addRow(['']);
-  legendRow.getCell(1).value = '🎨 Planner separated into RIDES and RETAIL sections | Senior Hosts highlighted in light blue | Colors match Skills Matrix | BREAK = White | BRIEFING = Gold (09:15)';
-  legendRow.getCell(1).font = { italic: true, size: 9 };
-  legendRow.getCell(1).alignment = { horizontal: 'left', wrapText: true };
-  worksheet.mergeCells(legendRow.number, 1, legendRow.number, Math.min(7, timeSlots.length + 1));
+  renderPlannerLegend(
+    worksheet,
+    timeSlots.length,
+    '🎨 Planner separated into RIDES and RETAIL sections | Senior Hosts highlighted in light blue | Colors match Skills Matrix | BREAK = White | BRIEFING = Gold (09:15)'
+  );
   
   return await workbook.xlsx.writeBuffer();
 }
