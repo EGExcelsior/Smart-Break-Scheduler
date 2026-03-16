@@ -1,0 +1,135 @@
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+.stat-card {
+  background: #f5f5f5;
+  border-left: 4px solid #ccc;
+  padding: 20px;
+  border-radius: 6px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card.success {
+  background: #f1f8e9;
+  border-left-color: #4caf50;
+}
+
+.stat-card.info {
+  background: #e3f2fd;
+  border-left-color: #2196f3;
+}
+
+.stat-card.highlight {
+  background: #f3e5f5;
+  border-left-color: #764ba2;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.stat-card.success .stat-value {
+  color: #2e7d32;
+}
+
+.stat-card.info .stat-value {
+  color: #1565c0;
+}
+
+.stat-card.highlight .stat-value {
+  color: #6a1b9a;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.action-section {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 30px;
+  flex-wrap: wrap;
+}
+
+.primary-button,
+.secondary-button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.primary-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.secondary-button {
+  background: #e8eaf6;
+  color: #667eea;
+  border: 1px solid #667eea;
+}
+
+.secondary-button:hover:not(:disabled) {
+  background: #d7dff1;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.secondary-button .spinner {
+  border-color: rgba(102, 126, 234, 0.3);
+  border-top-color: #667eea;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

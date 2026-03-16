@@ -1,0 +1,120 @@
+@media (max-width: 768px) {
+  .progress-bar {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .progress-line {
+    width: 3px;
+    height: 30px;
+    margin: -4px 0;
+  }
+
+  .progress-step .step-label {
+    font-size: 10px;
+    width: 60px;
+  }
+
+  .progress-step .step-number {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .step-content {
+    padding: 24px;
+  }
+
+  .step-title {
+    font-size: 22px;
+  }
+
+  .upload-cards,
+  .config-grid,
+  .units-grid,
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .action-section,
+  .quick-actions {
+    flex-direction: column;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .quick-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .modern-workflow {
+    padding: 20px 12px;
+  }
+
+  .step-content {
+    padding: 16px;
+    border-radius: 8px;
+  }
+
+  .step-title {
+    font-size: 18px;
+  }
+
+  .step-subtitle {
+    font-size: 13px;
+  }
+
+  .progress-bar {
+    margin-bottom: 30px;
+  }
+
+  .progress-step .step-number {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .progress-step .step-label {
+    font-size: 9px;
+    width: 50px;
+  }
+
+  .card-header {
+    padding: 12px;
+  }
+
+  .card-header h3 {
+    font-size: 14px;
+  }
+
+  .upload-zone {
+    padding: 16px;
+  }
+
+  .upload-icon {
+    font-size: 36px;
+  }
+
+  .unit-checkbox {
+    padding: 8px;
+  }
+
+  .stat-value {
+    font-size: 24px;
+  }
+
+  .success-message {
+    padding: 24px;
+  }
+
+  .success-icon {
+    font-size: 48px;
+  }
+
+  .success-message h2 {
+    font-size: 20px;
+  }
+}

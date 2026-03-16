@@ -1,0 +1,137 @@
+.unit-status-selector {
+  display: grid;
+  gap: 24px;
+  margin-bottom: 30px;
+}
+
+.category-group {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid #e0e0e0;
+  transition: all 0.3s ease;
+}
+
+.category-group:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.category-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.category-header h3 {
+  font-size: 16px;
+  color: #333;
+  margin: 0;
+  font-weight: 600;
+}
+
+.category-count {
+  background: #667eea;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.units-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.unit-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.unit-checkbox:hover {
+  background: #f5f5ff;
+  border-color: #667eea;
+}
+
+.unit-checkbox input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #667eea;
+}
+
+.checkbox-label {
+  flex: 1;
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+.closed-badge {
+  background: #ffebee;
+  color: #c62828;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+.unit-checkbox--group {
+  background: #f5f0ff;
+  border-color: #c9b8f0;
+  font-weight: 600;
+}
+
+.unit-checkbox--group:hover {
+  background: #ede8ff;
+  border-color: #667eea;
+}
+
+.unit-checkbox--group .checkbox-label {
+  font-weight: 600;
+  color: #4a3a8a;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+
+.quick-button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.quick-button.secondary {
+  background: #e8eaf6;
+  color: #667eea;
+  border: 1px solid #667eea;
+}
+
+.quick-button.secondary:hover {
+  background: #d7dff1;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
+}
