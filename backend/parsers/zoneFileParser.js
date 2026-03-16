@@ -10,6 +10,7 @@ const UNIT_NAME_COLUMN_INDEX = 0;
 const POSITION_COLUMN_INDEX = 1;
 const DATA_START_ROW_INDEX = 11;
 const MAX_REASONABLE_STAFF_COUNT = 10;
+const VERBOSE_ZONE_PARSING = process.env.VERBOSE_ZONE_PARSING === 'true';
 
 function discoverDayCodeSections(headerRow) {
   const dayCodeSections = [];
@@ -78,7 +79,9 @@ function extractSectionRequirements(data, section) {
           staffNeeded: totalStaff
         });
 
-        console.log(`  ✅ ${unitTrim} (${positionTrim}): ${totalStaff} staff`);
+        if (VERBOSE_ZONE_PARSING) {
+          console.log(`  ✅ ${unitTrim} (${positionTrim}): ${totalStaff} staff`);
+        }
       }
     }
   }
@@ -94,7 +97,8 @@ function buildDayCodeOptions(dayCodeSections) {
 }
 
 function parseZoneFile(filePath) {
-  console.log(`\n📊 Parsing zone file for day codes and staffing requirements...`);
+  const zoneFileName = filePath.split(/[\\/]/).pop() || filePath;
+  console.log(`\n📊 Parsing zone file: ${zoneFileName}`);
   
   const workbook = XLSX.readFile(filePath);
   const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -104,7 +108,11 @@ function parseZoneFile(filePath) {
   const headerRow = data[DAY_CODE_HEADER_ROW_INDEX] || [];
   const dayCodeSections = discoverDayCodeSections(headerRow);
   
-  console.log(`🔍 Found day codes: ${dayCodeSections.map(d => `${d.code} (${d.label})`).join(', ')}`);
+  if (VERBOSE_ZONE_PARSING) {
+    console.log(`🔍 Found day codes: ${dayCodeSections.map(d => `${d.code} (${d.label})`).join(', ')}`);
+  } else {
+    console.log(`🔍 Found ${dayCodeSections.length} day codes`);
+  }
   
   if (dayCodeSections.length === 0) {
     console.log(`❌ No day codes found in zone file!`);
@@ -118,9 +126,16 @@ function parseZoneFile(filePath) {
   const staffingRequirements = {};
   
   for (const section of dayCodeSections) {
-    console.log(`\n📋 Parsing Day Code ${section.code} (${section.label}):`);
+    if (VERBOSE_ZONE_PARSING) {
+      console.log(`\n📋 Parsing Day Code ${section.code} (${section.label}):`);
+    }
 
     staffingRequirements[section.code] = extractSectionRequirements(data, section);
+  }
+
+  if (!VERBOSE_ZONE_PARSING) {
+    const totalPositions = Object.values(staffingRequirements).reduce((sum, requirements) => sum + requirements.length, 0);
+    console.log(`📋 Parsed ${totalPositions} staffing rows across ${dayCodeSections.length} day codes`);
   }
   
   return {

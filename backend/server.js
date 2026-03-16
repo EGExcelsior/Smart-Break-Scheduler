@@ -36,6 +36,8 @@ const {
   getStaffWorkingHours
 } = require('./utils/staffTimegripUtils');
 
+const VERBOSE_API_LOGS = process.env.VERBOSE_API_LOGS === 'true';
+
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
@@ -399,7 +401,9 @@ function staffHasSkill(staff, unitName, requiredPosition) {
 // ✅ V10.0: Parse Closed Days sheet from zone file (now from folder!)
 function getClosedDaysStatus(zoneFilePath, date, dayCode) {
   try {
-    console.log(`📖 Reading Closed Days from: ${zoneFilePath}`);
+    if (VERBOSE_API_LOGS) {
+      console.log(`📖 Reading Closed Days from: ${zoneFilePath}`);
+    }
     
     if (!fs.existsSync(zoneFilePath)) {
       console.error(`❌ Zone file not found: ${zoneFilePath}`);
@@ -416,7 +420,9 @@ function getClosedDaysStatus(zoneFilePath, date, dayCode) {
     const ws = wb.Sheets['Closed Days'];
     const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
     
-    console.log(`📄 Closed Days sheet has ${data.length} rows`);
+    if (VERBOSE_API_LOGS) {
+      console.log(`📄 Closed Days sheet has ${data.length} rows`);
+    }
     
     // Row 3 (index 2) contains headers with unit names starting from column I (index 8)
     const headers = data[2];
@@ -456,7 +462,9 @@ function getClosedDaysStatus(zoneFilePath, date, dayCode) {
         
         if (rowDateStr === date) {
           targetRow = row;
-          console.log(`✅ Found matching date row: ${date} (matched: ${rowDateStr})`);
+          if (VERBOSE_API_LOGS) {
+            console.log(`✅ Found matching date row: ${date} (matched: ${rowDateStr})`);
+          }
           break;
         }
       }
@@ -477,7 +485,9 @@ function getClosedDaysStatus(zoneFilePath, date, dayCode) {
       }
     }
     
-    console.log(`📊 Closed Days status loaded: ${Object.keys(statusMap).length} units`);
+    if (VERBOSE_API_LOGS) {
+      console.log(`📊 Closed Days status loaded: ${Object.keys(statusMap).length} units`);
+    }
     return statusMap;
   } catch (error) {
     console.error('❌ Error parsing Closed Days sheet:', error);
@@ -606,11 +616,15 @@ app.post('/api/get-unit-status', express.json(), (req, res) => {
     console.log(`\n🔄 Getting unit status for ${zone}...`);
     const units = getUnitsWithStatus(zoneFilePath, date, dayCode);
     
-    console.log(`✅ Returning units for zone ${zone}:`);
-    console.log(`   Categories: ${Object.keys(units).join(', ')}`);
-    Object.entries(units).forEach(([category, unitList]) => {
-      console.log(`   ${category}: ${unitList.map(u => u.name).join(', ')}`);
-    });
+    const categoryNames = Object.keys(units);
+    const totalUnits = categoryNames.reduce((sum, category) => sum + units[category].length, 0);
+    console.log(`✅ Returning units for zone ${zone}: ${categoryNames.length} categories, ${totalUnits} units`);
+    if (VERBOSE_API_LOGS) {
+      console.log(`   Categories: ${categoryNames.join(', ')}`);
+      Object.entries(units).forEach(([category, unitList]) => {
+        console.log(`   ${category}: ${unitList.map(u => u.name).join(', ')}`);
+      });
+    }
     
     res.json({
       success: true,
@@ -659,10 +673,12 @@ app.post('/api/parse-and-analyze', upload.fields([
     const staffingRequirements = zoneData.staffingRequirements[dayCode] || [];
     const dayCodeInfo = zoneData.dayCodeOptions.find(dc => dc.code === dayCode);
     
-    console.log(`📊 Staffing requirements for ${zone} - Day Code ${dayCode}:`);
-    staffingRequirements.forEach(req => {
-      console.log(`  ${req.unitName} (${req.position}): ${req.staffNeeded} staff needed`);
-    });
+    console.log(`📊 Staffing requirements for ${zone} - Day Code ${dayCode}: ${staffingRequirements.length} positions`);
+    if (VERBOSE_API_LOGS) {
+      staffingRequirements.forEach(req => {
+        console.log(`  ${req.unitName} (${req.position}): ${req.staffNeeded} staff needed`);
+      });
+    }
     
     const statistics = {
       staffWithGreenTraining: skillsData.staffWithGreen.length,
@@ -1727,7 +1743,17 @@ assigned += bcResult.assignedCount;
     }
     
     const totalNeeded = staffingRequirements.reduce((sum, req) => sum + req.staffNeeded, 0);
-    console.log(`\n=== COMPLETE: ${assigned}/${totalNeeded} assigned ===\n`);
+    const staffedRequiredSlots = staffingRequirements.reduce((sum, requirement) => {
+      const matchingAssignments = assignments.filter((assignment) =>
+        assignment.unit === requirement.unitName &&
+        assignment.position === requirement.position &&
+        assignment.staff !== 'UNFILLED' &&
+        !assignment.isBreak
+      );
+      const uniqueStaffForRequirement = new Set(matchingAssignments.map((assignment) => assignment.staff));
+      return sum + Math.min(requirement.staffNeeded, uniqueStaffForRequirement.size);
+    }, 0);
+    console.log(`\n=== COMPLETE: ${staffedRequiredSlots}/${totalNeeded} required positions filled ===\n`);
     
     // ✅ V13: Sort assignments alphabetically by staff name
     assignments.sort((a, b) => a.staff.localeCompare(b.staff));
@@ -1839,9 +1865,9 @@ const scheduleData = {
   staffList: sortedStaffList,
   alerts: timegripData.alerts || null,
   statistics: {
-    filledCount: assigned,
+    filledCount: staffedRequiredSlots,
     totalPositions: totalNeeded,
-    fillRate: totalNeeded > 0 ? Math.round((assigned / totalNeeded) * 100) : 0
+    fillRate: totalNeeded > 0 ? Math.round((staffedRequiredSlots / totalNeeded) * 100) : 0
   },
   parkWideUnits: parkWideUnits,  // ✅ BUG #15: Add park-wide units
   explorerColor: '#DA9694',  // ✅ Color for Explorer-related units (Explorer Entrance only)
@@ -1854,13 +1880,13 @@ const scheduleData = {
     const base64 = excelBuffer.toString('base64');
     
     const filename = `planner-${zone}-${dayCode}-${date.replace(/\//g, '-')}.xlsx`;
-    console.log(`Generated Excel planner: ${filename} (${assigned}/${totalNeeded} assigned)`);
+    console.log(`Generated Excel planner: ${filename} (${staffedRequiredSlots}/${totalNeeded} required positions filled)`);
     
     res.json({
       success: true,
-      assigned,
+      assigned: staffedRequiredSlots,
       total: totalNeeded,
-      fillRate: totalNeeded > 0 ? Math.round((assigned / totalNeeded) * 100) : 0,
+      fillRate: totalNeeded > 0 ? Math.round((staffedRequiredSlots / totalNeeded) * 100) : 0,
       assignments,
       alerts: timegripData.alerts || null,
       excelFile: base64,
