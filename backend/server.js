@@ -8,12 +8,26 @@ const { parseSkillsMatrix } = require('./parsers/skillsMatrixParser');
 const { parseTimegripCsv } = require('./parsers/timegripParser');
 const { parseZoneFile } = require('./parsers/zoneFileParser');
 const { generateExcelPlanner } = require('./generators/excelPlannerGenerator');
+const { classifyDeferredRetailAdmissions } = require('./services/autoAssignStaffClassifier');
+const { applyAztecaPrePass } = require('./services/autoAssignAztecaPrePass');
+const { applySeniorHostPriorityStep } = require('./services/autoAssignSeniorHostStep');
+const { applyBjPrePass } = require('./services/autoAssignBjPrePass');
+const { prepareFullShiftAssignmentsAndReserve } = require('./services/autoAssignFullShiftPrep');
+const { assignFullShiftHostsStep2 } = require('./services/autoAssignFullShiftExecution');
+const { assignShortShiftHostsStep3 } = require('./services/autoAssignShortShiftStep3');
+const { enforceRetailOpeningCoverage } = require('./services/autoAssignRetailOpeningPreStep4');
+const { assignRemainingHostsStep4 } = require('./services/autoAssignRemainingHostsStep4');
 
 const { 
   timeToMinutes, 
   minutesToTime, 
   calculateBreakTiming,
 } = require('./utils/breakCalculator');
+const {
+  normalizeStaffName,
+  isStaffAvailableForTime,
+  getStaffWorkingHours
+} = require('./utils/staffTimegripUtils');
 
 
 const app = express();
@@ -165,30 +179,6 @@ const UNITS_WITH_BREAK_COVER_NEEDED = [
   'Explorer Supplies',
   "Ben & Jerry's Kiosk"
 ];
-
-// ✅ V7.10: Normalize staff names for matching
-function normalizeStaffName(name) {
-  if (!name) return '';
-  
-  // Remove department suffixes and normalize
-  let normalized = name
-    .toLowerCase()
-    .replace(/\s+(r&a|c|r|retail|rides|admissions)$/i, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  
-  // ✅ BUG FIX #7a: Handle middle names/compound surnames
-  // Extract first name + first surname only
-  // "Cai Tinsley Cullip" → "cai tinsley"
-  // "Cai Tinsley" → "cai tinsley"
-  const parts = normalized.split(' ');
-  if (parts.length > 2) {
-    // Keep only first name + first surname
-    normalized = `${parts[0]} ${parts[1]}`;
-  }
-  
-  return normalized;
-}
 
 // ✅ V12: Snap to nearest hourly break slot
 function snapToNearestHour(minutesSinceMidnight) {
@@ -526,60 +516,6 @@ function staffHasSkill(staff, unitName, requiredPosition) {
   }
   
   return false;
-}
-
-// ✅ V7.10: Fuzzy name matching for availability
-function isStaffAvailableForTime(staffName, startTime, endTime, timegripData) {
-  const normalizedSearchName = normalizeStaffName(staffName);
-  
-  // ✅ BUG FIX #9a: Search in BOTH workingStaff AND MANAGEMENT category
-  let staff = timegripData.workingStaff.find(s => {
-    const normalizedWorkingName = normalizeStaffName(s.name);
-    return normalizedWorkingName === normalizedSearchName;
-  });
-  
-  // If not found in workingStaff, try MANAGEMENT category (Zonal Leads)
-  if (!staff && timegripData.staffByFunction?.MANAGEMENT) {
-    staff = timegripData.staffByFunction.MANAGEMENT.find(s => {
-      const normalizedWorkingName = normalizeStaffName(s.name);
-      return normalizedWorkingName === normalizedSearchName;
-    });
-  }
-  
-  if (!staff) {
-    return false;
-  }
-  
-  return true;
-}
-
-// ✅ V7.12: Get staff working hours from TimeGrip
-function getStaffWorkingHours(staffName, timegripData) {
-  const normalizedSearchName = normalizeStaffName(staffName);
-  
-  // ✅ BUG FIX #9b: Search in BOTH workingStaff AND MANAGEMENT category
-  let staff = timegripData.workingStaff.find(s => {
-    const normalizedWorkingName = normalizeStaffName(s.name);
-    return normalizedWorkingName === normalizedSearchName;
-  });
-  
-  // If not found in workingStaff, try MANAGEMENT category (Zonal Leads)
-  if (!staff && timegripData.staffByFunction?.MANAGEMENT) {
-    staff = timegripData.staffByFunction.MANAGEMENT.find(s => {
-      const normalizedWorkingName = normalizeStaffName(s.name);
-      return normalizedWorkingName === normalizedSearchName;
-    });
-  }
-  
-  if (!staff) {
-    return null;
-  }
-  
-  return {
-    startTime: staff.startTime,
-    endTime: staff.endTime,
-    breakMinutes: staff.scheduledBreakMinutes || 0
-  };
 }
 
 // ✅ V10.0: Parse Closed Days sheet from zone file (now from folder!)
@@ -3258,43 +3194,12 @@ const deferredRetailAdmissions = (timegripData.staffByFunction?.SPECIFIC || []).
 console.log(`   Found ${deferredRetailAdmissions.length} deferred retail/admissions staff`);
 
 // ✅ CLASSIFY STAFF BY TYPE AND SHIFT LENGTH
-const staffByType = {
-  seniorHostsFullShift: [],      // 09:15-16:45 (45-min break)
-  regularHostsFullShift: [],     // 09:15-16:45 (45-min break)
-  regularHostsShortShift: [],    // 09:15-13:00 (no break)
-  regularHostsMidShift: []       // 11:00-15:00 (no break, break cover)
-};
-
-for (const staff of deferredRetailAdmissions) {
-  const isSeniorHost = 
-    (skillsData.seniorHosts && skillsData.seniorHosts.some(sh => 
-      normalizeStaffName(sh) === normalizeStaffName(staff.name)
-    )) || 
-    (staff.plannedFunction && staff.plannedFunction.includes('Senior Host'));
-  
-  const shiftStart = staff.startTime;
-  const shiftEnd = staff.endTime;
-  const shiftDuration = timeToMinutes(shiftEnd) - timeToMinutes(shiftStart);
-  const breakMinutes = staff.scheduledBreakMinutes || 0;
-  
-  // Classify by shift type
-  if (isSeniorHost && shiftStart === '09:15' && shiftDuration >= 420) {
-    staffByType.seniorHostsFullShift.push(staff);
-  } else if (!isSeniorHost && shiftStart === '09:15' && shiftDuration >= 420 && breakMinutes >= 30) {
-    staffByType.regularHostsFullShift.push(staff);
-  } else if (!isSeniorHost && shiftStart === '09:15' && shiftDuration < 300) {
-    staffByType.regularHostsShortShift.push(staff);
-  } else if (!isSeniorHost && shiftStart >= '10:00' && shiftDuration <= 300) {
-    staffByType.regularHostsMidShift.push(staff);
-  } else {
-    // Fallback: add to appropriate category
-    if (isSeniorHost) {
-      staffByType.seniorHostsFullShift.push(staff);
-    } else {
-      staffByType.regularHostsFullShift.push(staff);
-    }
-  }
-}
+const staffByType = classifyDeferredRetailAdmissions(
+  deferredRetailAdmissions,
+  skillsData,
+  normalizeStaffName,
+  timeToMinutes
+);
 
 console.log(`   → ${staffByType.seniorHostsFullShift.length} Senior Hosts (full shift)`);
 console.log(`   → ${staffByType.regularHostsFullShift.length} Regular Hosts (full shift)`);
@@ -3316,631 +3221,130 @@ const PRIORITY_UNITS = {
 //   11:00        Break (forced by Azteca override in break scheduler)
 //   After break  Routed via afternoon reassignment wherever needed
 // ============================================================================
-const aztecaReq = staffingRequirements.find(r => r.unitName === 'Azteca Entrance');
-const otherEntrancesOpen = staffingRequirements.some(r =>
-  r.unitName !== 'Azteca Entrance' && r.unitName.includes('Entrance')
-);
-
-if (aztecaReq && otherEntrancesOpen) {
-  const AZTECA_LEAVE_TIME = '10:00';
-  const AZTECA_LODGE_TIME = '11:00'; // support Lodge 10:00–11:00 then break
-  const AZTECA_STAFF_COUNT = 2;
-
-  const aztecaCandidates = [
-    ...staffByType.regularHostsFullShift,
-    ...staffByType.seniorHostsFullShift
-  ].filter(s => !assignedStaff.has(s.name) && s.startTime === '08:30');
-
-  // After Azteca, route support hour to the busiest entrance for the selected day code.
-  const EXPLORER_BASELINE_DAYS = new Set(['E', 'F', 'G', 'H', 'I']);
-  const hasExplorerEntrance = staffingRequirements.some(r => r.unitName === 'Explorer Entrance');
-  const hasLodgeEntrance = staffingRequirements.some(r => r.unitName === 'Lodge Entrance');
-  const postAztecaUnit = (EXPLORER_BASELINE_DAYS.has(dayCode) && hasExplorerEntrance)
-    ? 'Explorer Entrance'
-    : (hasLodgeEntrance ? 'Lodge Entrance' : 'Adventures Point Gift Shop');
-
-  console.log(`\n   🚗 Azteca pre-pass: assigning 2 early starters (08:30–${AZTECA_LEAVE_TIME}), then ${postAztecaUnit} (${AZTECA_LEAVE_TIME}–${AZTECA_LODGE_TIME}), break at 11:00`);
-
-  let aztecaFilled = 0;
-  for (const host of aztecaCandidates) {
-    if (aztecaFilled >= AZTECA_STAFF_COUNT) break;
-
-    // 08:30 → 10:00 at Azteca
-    assignments.push({
-      unit: 'Azteca Entrance', position: aztecaReq.position,
-      positionType: 'Host (Azteca Morning)',
-      staff: host.name, zone, dayCode,
-      trainingMatch: 'Azteca Entrance-Host',
-      startTime: host.startTime, endTime: AZTECA_LEAVE_TIME,
-      breakMinutes: 0, isBreak: false, category: 'Admissions'
-    });
-
-    // 10:00 → 11:00 at Lodge (support hour before break)
-    assignments.push({
-      unit: postAztecaUnit, position: 'Admissions Host',
-      positionType: 'Host (Post-Azteca)',
-      staff: host.name, zone, dayCode,
-      trainingMatch: `${postAztecaUnit}-Host`,
-      startTime: AZTECA_LEAVE_TIME, endTime: AZTECA_LODGE_TIME,
-      breakMinutes: 0, isBreak: false, category: getCategoryFromUnit(postAztecaUnit)
-    });
-
-    // 11:00 → end of shift: free for afternoon reassignment (Step 6 will route them)
-    assignments.push({
-      unit: postAztecaUnit, position: 'Admissions Host',
-      positionType: 'Host (Post-Break)',
-      staff: host.name, zone, dayCode,
-      trainingMatch: `${postAztecaUnit}-Host`,
-      startTime: AZTECA_LODGE_TIME, endTime: host.endTime,
-      breakMinutes: host.scheduledBreakMinutes || 0,
-      isBreak: false, category: getCategoryFromUnit(postAztecaUnit)
-    });
-
-    assignedStaff.add(host.name);
-    const aztecaKey = `Azteca Entrance-${aztecaReq.position}`;
-    filledPositions.set(aztecaKey, (filledPositions.get(aztecaKey) || 0) + 1);
-    assigned++;
-    aztecaFilled++;
-    console.log(`   🚗 ${host.name} → Azteca (08:30–${AZTECA_LEAVE_TIME}) → ${postAztecaUnit} (${AZTECA_LEAVE_TIME}–${AZTECA_LODGE_TIME}) → break 11:00 → free`);
-  }
-
-  if (aztecaFilled < AZTECA_STAFF_COUNT) {
-    console.log(`   ⚠️  Azteca pre-pass: only found ${aztecaFilled}/${AZTECA_STAFF_COUNT} 08:30 starters`);
-  }
-}
+const aztecaPrePassResult = applyAztecaPrePass({
+  staffingRequirements,
+  staffByType,
+  assignedStaff,
+  assignments,
+  filledPositions,
+  dayCode,
+  zone,
+  getCategoryFromUnit
+});
+assigned += aztecaPrePassResult.assignedCount;
 
 // ============================================================================
 // STEP 1: Assign Senior Hosts to Priority Units (full shift, 1 per unit)
 // ============================================================================
-console.log(`\n   📍 STEP 1: Assigning Senior Hosts to priority units...`);
-
-// ✅ DYNAMIC PRIORITY LIST: Include all Admissions units (Entrances) + key retail
-const admissionsUnits = staffingRequirements
-  .filter(r => r.unitName.includes('Entrance') && r.position.includes('Senior Host'))
-  .map(r => r.unitName);
-
-const priorityUnitsForSeniorHost = [
-  ...new Set([  // Remove duplicates
-    ...admissionsUnits,  // All entrance units (Lodge, Explorer, Azteca, Schools)
-    'Adventures Point Gift Shop',
-    'Sweet Shop'
-  ])
-];
-
-console.log(`   Priority units for Senior Hosts: ${priorityUnitsForSeniorHost.join(', ')}`);
-
-for (const unitName of priorityUnitsForSeniorHost) {
-  const req = staffingRequirements.find(r => 
-    r.unitName === unitName && 
-    r.position.includes('Senior Host')
-  );
-  
-  if (!req) continue;
-  
-  // ✅ FIX: Track filled positions per UNIT, not globally by competency
-  const unitPositionKey = `${req.unitName}-${req.position}`;
-  if ((filledPositions.get(unitPositionKey) || 0) >= req.staffNeeded) {
-    console.log(`   ✅ ${unitName}: Already has Senior Host`);
-    continue;
-  }
-  
-  const availableSenior = staffByType.seniorHostsFullShift.find(s => !assignedStaff.has(s.name));
-  
-  if (availableSenior) {
-    assignments.push({
-      unit: req.unitName,
-      position: req.position,
-      positionType: 'Senior Host',
-      staff: availableSenior.name,
-      zone: zone,
-      dayCode: dayCode,
-      trainingMatch: `${req.unitName}-Senior Host`,
-      startTime: availableSenior.startTime,
-      endTime: availableSenior.endTime,
-      breakMinutes: availableSenior.scheduledBreakMinutes || 0,
-      isBreak: false,
-      category: getCategoryFromUnit(req.unitName)
-    });
-    
-    assignedStaff.add(availableSenior.name);
-    filledPositions.set(unitPositionKey, (filledPositions.get(unitPositionKey) || 0) + 1);
-    console.log(`   ✅ ${availableSenior.name} → ${unitName} (Senior Host, ${availableSenior.startTime}-${availableSenior.endTime})`);
-    assigned++;
-  }
-}
+const seniorHostStepResult = applySeniorHostPriorityStep({
+  staffingRequirements,
+  staffByType,
+  assignedStaff,
+  assignments,
+  filledPositions,
+  zone,
+  dayCode,
+  getCategoryFromUnit
+});
+assigned += seniorHostStepResult.assignedCount;
 
 // ============================================================================
 // B&J PRE-PASS: Guarantee 2 trained staff at Ben & Jerry's from 12:00
 // ============================================================================
-const BJ_OPEN_PRE = '12:00';
-const BJ_MIN_GUARANTEE = 2;
-const bjBaseReq = staffingRequirements.find(r => r.unitName === "Ben & Jerry's");
-if (bjBaseReq) {
-  const bjTrained = staffByType.regularHostsFullShift.filter(s =>
-    !assignedStaff.has(s.name) && hasSkillForUnit(s.name, "Ben & Jerry's", skillsData)
-  );
-  console.log(`   🍦 B&J pre-pass: ${bjTrained.length} trained staff, guaranteeing ${BJ_MIN_GUARANTEE} from ${BJ_OPEN_PRE}`);
-  let bjFilled = 0;
-  for (const host of bjTrained) {
-    if (bjFilled >= BJ_MIN_GUARANTEE) break;
-    if (timeToMinutes(host.startTime) < timeToMinutes(BJ_OPEN_PRE)) {
-      assignments.push({ unit: 'Sweet Shop', position: 'Retail Host', positionType: 'Host (Morning Cover)', staff: host.name, zone, dayCode, trainingMatch: 'Sweet Shop-Host', startTime: host.startTime, endTime: BJ_OPEN_PRE, breakMinutes: 0, isBreak: false, category: 'Retail' });
-      assignments.push({ unit: "Ben & Jerry's", position: 'Retail Host', positionType: 'Host (B&J from open)', staff: host.name, zone, dayCode, trainingMatch: "Ben & Jerry's-Host", startTime: BJ_OPEN_PRE, endTime: host.endTime, breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail' });
-      console.log(`   🍦 [PRE] ${host.name} → Sweet Shop (${host.startTime}-${BJ_OPEN_PRE}) then B&J (${BJ_OPEN_PRE}-${host.endTime})`);
-    } else {
-      assignments.push({ unit: "Ben & Jerry's", position: 'Retail Host', positionType: 'Host (B&J from open)', staff: host.name, zone, dayCode, trainingMatch: "Ben & Jerry's-Host", startTime: host.startTime, endTime: host.endTime, breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail' });
-      console.log(`   🍦 [PRE] ${host.name} → Ben & Jerry's (${host.startTime}-${host.endTime})`);
-    }
-    assignedStaff.add(host.name); assigned++; bjFilled++;
-  }
-  if (bjFilled < BJ_MIN_GUARANTEE) console.log(`   ⚠️  B&J pre-pass: only ${bjFilled}/${BJ_MIN_GUARANTEE} trained staff found`);
-}
+const bjPrePassResult = applyBjPrePass({
+  staffingRequirements,
+  staffByType,
+  assignedStaff,
+  assignments,
+  zone,
+  dayCode,
+  skillsData,
+  hasSkillForUnit,
+  timeToMinutes
+});
+assigned += bjPrePassResult.assignedCount;
 
 // ============================================================================
 // STEP 2: Assign Full-Shift Hosts to All-Day Coverage Units
 // ============================================================================
-console.log(`\n   📍 STEP 2: Assigning full-shift Hosts for all-day coverage...`);
-
-// ✅ BUILD DYNAMIC ASSIGNMENT LIST from unfilled retail/admissions requirements
-const fullShiftAssignments = [];
-const retailAdmissionsUnits = staffingRequirements.filter(r => 
-  (r.unitName.includes('Shop') || canonicalizeUnitName(r.unitName) === 'Sealife' || r.unitName.includes('Entrance')) &&
-  r.position.includes('Host') &&
-  !r.position.includes('Senior Host') &&
-  !r.position.includes('Break Cover')
-);
-
-for (const req of retailAdmissionsUnits) {
-  const unitPositionKey = `${req.unitName}-${req.position}`;
-  const currentFill = filledPositions.get(unitPositionKey) || 0;
-  const needed = req.staffNeeded - currentFill;
-  if (needed > 0) {
-    fullShiftAssignments.push({ unit: req.unitName, count: needed, req, unitPositionKey });
-  }
-}
-
-const STEP2_UNIT_PRIORITY = {
-  // Prioritize Admissions host coverage first to avoid Lodge/Explorer imbalance.
-  'Explorer Entrance': 1,
-  'Lodge Entrance': 2,
-  'Schools Entrance': 3,
-  'Azteca Entrance': 4,
-  Sealife: 10,
-  'Sweet Shop': 11,
-  'Adventures Point Gift Shop': 12,
-  'Explorer Supplies': 13,
-  "Ben & Jerry's": 14,
-  "Ben & Jerry's Kiosk": 15
-};
-
-fullShiftAssignments.sort((a, b) => {
-  const priorityA = STEP2_UNIT_PRIORITY[a.unit] || 99;
-  const priorityB = STEP2_UNIT_PRIORITY[b.unit] || 99;
-  if (priorityA !== priorityB) return priorityA - priorityB;
-  return a.unit.localeCompare(b.unit);
+const fullShiftPrepResult = prepareFullShiftAssignmentsAndReserve({
+  staffingRequirements,
+  canonicalizeUnitName,
+  filledPositions,
+  staffByType,
+  assignedStaff,
+  hasSkillForUnit,
+  skillsData,
+  assignments,
+  zone,
+  dayCode,
+  getCategoryFromUnit
 });
+const fullShiftAssignments = fullShiftPrepResult.fullShiftAssignments;
+const SKILL_GATED_STEP2 = fullShiftPrepResult.skillGatedStep2;
+assigned += fullShiftPrepResult.assignedCount;
 
-// Units that require specific skills — only trained staff should be assigned
-const SKILL_GATED_STEP2 = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sealife', 'Sweet Shop']);
+const fullShiftStepResult = assignFullShiftHostsStep2({
+  fullShiftAssignments,
+  filledPositions,
+  skillGatedStep2: SKILL_GATED_STEP2,
+  staffByType,
+  assignedStaff,
+  hasSkillForUnit,
+  skillsData,
+  assignments,
+  zone,
+  dayCode,
+  getCategoryFromUnit
+});
+assigned += fullShiftStepResult.assignedCount;
 
-// ============================================================================
-// RETAIL RESERVE PRE-PASS: Protect trained hosts for hard skill-gated units
-// ============================================================================
-const RETAIL_RESERVE_UNITS = ['Sealife', 'Sweet Shop'];
-for (const reserveUnit of RETAIL_RESERVE_UNITS) {
-  const reserveReqs = staffingRequirements.filter((req) =>
-    req.unitName === reserveUnit &&
-    req.position.includes('Host') &&
-    !req.position.includes('Senior Host') &&
-    !req.position.includes('Break Cover')
-  );
+const shortShiftStep3Result = assignShortShiftHostsStep3({
+  staffingRequirements,
+  staffByType,
+  assignedStaff,
+  assignments,
+  filledPositions,
+  zone,
+  dayCode
+});
+assigned += shortShiftStep3Result.assignedCount;
 
-  if (reserveReqs.length === 0) {
-    continue;
-  }
-
-  const neededTotal = reserveReqs.reduce((sum, req) => {
-    const key = `${req.unitName}-${req.position}`;
-    const remaining = req.staffNeeded - (filledPositions.get(key) || 0);
-    return sum + Math.max(0, remaining);
-  }, 0);
-
-  if (neededTotal <= 0) {
-    continue;
-  }
-
-  const trainedAvailable = staffByType.regularHostsFullShift.filter(
-    (staff) => !assignedStaff.has(staff.name) && hasSkillForUnit(staff.name, reserveUnit, skillsData)
-  );
-
-  console.log(`   🧭 Reserve pre-pass for ${reserveUnit}: need ${neededTotal}, trained available ${trainedAvailable.length}`);
-
-  for (const req of reserveReqs) {
-    const key = `${req.unitName}-${req.position}`;
-    while ((filledPositions.get(key) || 0) < req.staffNeeded) {
-      const reserveHost = trainedAvailable.find((staff) => !assignedStaff.has(staff.name));
-      if (!reserveHost) {
-        break;
-      }
-
-      assignments.push({
-        unit: req.unitName,
-        position: req.position,
-        positionType: 'Host (Reserved Skill Gate)',
-        staff: reserveHost.name,
-        zone,
-        dayCode,
-        trainingMatch: `${req.unitName}-Host`,
-        startTime: reserveHost.startTime,
-        endTime: reserveHost.endTime,
-        breakMinutes: reserveHost.scheduledBreakMinutes || 0,
-        isBreak: false,
-        category: getCategoryFromUnit(req.unitName)
-      });
-
-      assignedStaff.add(reserveHost.name);
-      filledPositions.set(key, (filledPositions.get(key) || 0) + 1);
-      assigned++;
-      console.log(`   ✅ [RESERVE] ${reserveHost.name} → ${req.unitName} (${reserveHost.startTime}-${reserveHost.endTime})`);
-    }
-  }
-}
-
-for (const assignment of fullShiftAssignments) {
-  // Check live fill count against requirement (not the stale pre-computed count)
-  // so that reserve pre-pass assignments are properly accounted for.
-  while ((filledPositions.get(assignment.unitPositionKey) || 0) < assignment.req.staffNeeded) {
-    // ✅ FIX: For skill-gated units, only assign trained staff
-    let availableHost = SKILL_GATED_STEP2.has(assignment.req.unitName)
-      ? staffByType.regularHostsFullShift.find(s => !assignedStaff.has(s.name) && hasSkillForUnit(s.name, assignment.req.unitName, skillsData))
-      : staffByType.regularHostsFullShift.find(s => !assignedStaff.has(s.name));
-
-    // Sweet Shop gets a fallback if no trained staff available (must always be covered).
-    // Sealife does NOT get a fallback — only trained staff; minimum 1, prefer 2 if trained available.
-    if (!availableHost && assignment.req.unitName === 'Sweet Shop') {
-      availableHost = staffByType.regularHostsFullShift.find(s => !assignedStaff.has(s.name));
-      if (availableHost) {
-        console.log(`   ⚠️  ${assignment.req.unitName}: no trained host available, using fallback ${availableHost.name} for coverage`);
-      }
-    }
-    
-    if (availableHost) {
-      assignments.push({
-        unit: assignment.req.unitName,
-        position: assignment.req.position,
-        positionType: 'Host (Full Shift)',
-        staff: availableHost.name,
-        zone: zone,
-        dayCode: dayCode,
-        trainingMatch: `${assignment.req.unitName}-Host`,
-        startTime: availableHost.startTime,
-        endTime: availableHost.endTime,
-        breakMinutes: availableHost.scheduledBreakMinutes || 0,
-        isBreak: false,
-        category: getCategoryFromUnit(assignment.req.unitName)
-      });
-      
-      assignedStaff.add(availableHost.name);
-      filledPositions.set(assignment.unitPositionKey, (filledPositions.get(assignment.unitPositionKey) || 0) + 1);
-      console.log(`   ✅ ${availableHost.name} → ${assignment.req.unitName} (Host, ${availableHost.startTime}-${availableHost.endTime})`);
-      assigned++;
-    } else {
-      console.log(`   ⚠️  No available full-shift host for ${assignment.req.unitName}`);
-      break; // No more staff available for this position
-    }
-  }
-}
-
-// ============================================================================
-// STEP 3: Assign Short-Shift Hosts (09:15-13:00) for Morning Coverage
-// ============================================================================
-console.log(`\n   📍 STEP 3: Assigning short-shift Hosts (morning coverage)...`);
-
-const EXPLORER_BASELINE_DAYS = new Set(['E', 'F', 'G', 'H', 'I']);
-const shortShiftTargetUnit = EXPLORER_BASELINE_DAYS.has(dayCode) && staffingRequirements.some(r =>
-  r.unitName === 'Explorer Entrance' &&
-  r.position.includes('Host') &&
-  !r.position.includes('Senior Host')
-)
-  ? 'Explorer Entrance'
-  : 'Lodge Entrance';
-
-const shortShiftNeeded = 2;
-
-for (let i = 0; i < shortShiftNeeded; i++) {
-  const req = staffingRequirements.find(r => 
-    r.unitName === shortShiftTargetUnit && 
-    r.position.includes('Host') &&
-    !r.position.includes('Senior Host')
-  );
-  
-  if (!req) continue;
-  
-  const availableShort = staffByType.regularHostsShortShift.find(s => !assignedStaff.has(s.name));
-  
-  if (availableShort) {
-    assignments.push({
-      unit: req.unitName,
-      position: req.position,
-      positionType: 'Host (Short Shift)',
-      staff: availableShort.name,
-      zone: zone,
-      dayCode: dayCode,
-      trainingMatch: `${req.unitName}-Host`,
-      startTime: availableShort.startTime,
-      endTime: availableShort.endTime,
-      breakMinutes: 0,  // Short shifts don't get breaks
-      isBreak: false,
-      category: 'Admissions'
-    });
-    
-    assignedStaff.add(availableShort.name);
-    const unitPositionKey = `${req.unitName}-${req.position}`;
-    filledPositions.set(unitPositionKey, (filledPositions.get(unitPositionKey) || 0) + 1);
-    console.log(`   ✅ ${availableShort.name} → ${req.unitName} (Host SHORT, ${availableShort.startTime}-${availableShort.endTime})`);
-    assigned++;
-  }
-}
-
-// ============================================================================
-// PRE-STEP 4: Enforce Retail Opening Coverage
-// All retail units require opening coverage from 10:00, except B&J units at 12:00.
-// ============================================================================
-console.log(`\n   🕙 PRE-STEP 4: Enforcing retail opening coverage...`);
-
-const RETAIL_OPENING_DEFAULT = '10:00';
-const RETAIL_OPENING_BJ = '12:00';
-const RETAIL_OPENING_SKILL_GATED = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sweet Shop', 'Sealife']);
-
-const retailUnitsNeedingOpening = [
-  ...new Set(
-    staffingRequirements
-      .filter((req) =>
-        getCategoryFromUnit(req.unitName) === 'Retail' &&
-        req.position.includes('Host') &&
-        !req.position.includes('Break Cover')
-      )
-      .map((req) => req.unitName)
-  )
-].filter((unitName) => unitName !== 'Retail Break Cover' && unitName !== 'Zonal Leads');
-
-for (const unitName of retailUnitsNeedingOpening) {
-  const openingTime = unitName.includes("Ben & Jerry's") ? RETAIL_OPENING_BJ : RETAIL_OPENING_DEFAULT;
-  const openingMinute = timeToMinutes(openingTime);
-
-  const openingCoverage = assignments.filter((a) =>
-    a.unit === unitName &&
-    !a.isBreak &&
-    a.staff !== 'UNFILLED' &&
-    timeToMinutes(a.startTime) <= openingMinute &&
-    timeToMinutes(a.endTime) > openingMinute
-  ).length;
-
-  if (openingCoverage >= 1) {
-    continue;
-  }
-
-  const unitReq =
-    staffingRequirements.find((req) =>
-      req.unitName === unitName &&
-      req.position.includes('Host') &&
-      !req.position.includes('Senior Host') &&
-      !req.position.includes('Break Cover')
-    ) ||
-    staffingRequirements.find((req) =>
-      req.unitName === unitName &&
-      req.position.includes('Host') &&
-      !req.position.includes('Break Cover')
-    );
-
-  if (!unitReq) {
-    continue;
-  }
-
-  const candidatePools = [
-    ...staffByType.regularHostsFullShift,
-    ...staffByType.regularHostsShortShift,
-    ...staffByType.seniorHostsFullShift
-  ];
-
-  const openingHost = candidatePools.find((staff) => {
-    if (assignedStaff.has(staff.name)) return false;
-    if (timeToMinutes(staff.startTime) > openingMinute) return false;
-    if (RETAIL_OPENING_SKILL_GATED.has(unitName) && !hasSkillForUnit(staff.name, unitName, skillsData)) return false;
-    return true;
-  });
-
-  if (!openingHost) {
-    console.log(`   ⚠️  ${unitName}: no available opening host for ${openingTime}`);
-    continue;
-  }
-
-  assignments.push({
-    unit: unitReq.unitName,
-    position: unitReq.position,
-    positionType: 'Host (Retail Opening)',
-    staff: openingHost.name,
-    zone: zone,
-    dayCode: dayCode,
-    trainingMatch: `${unitReq.unitName}-Host`,
-    startTime: openingHost.startTime,
-    endTime: openingHost.endTime,
-    breakMinutes: openingHost.scheduledBreakMinutes || 0,
-    isBreak: false,
-    category: 'Retail'
-  });
-
-  assignedStaff.add(openingHost.name);
-  const openingKey = `${unitReq.unitName}-${unitReq.position}`;
-  filledPositions.set(openingKey, (filledPositions.get(openingKey) || 0) + 1);
-  console.log(`   ✅ ${openingHost.name} → ${unitReq.unitName} (opening cover ${openingTime}+)`);
-  assigned++;
-}
+const retailOpeningResult = enforceRetailOpeningCoverage({
+  staffingRequirements,
+  assignments,
+  staffByType,
+  assignedStaff,
+  filledPositions,
+  zone,
+  dayCode,
+  skillsData,
+  getCategoryFromUnit,
+  hasSkillForUnit,
+  timeToMinutes
+});
+assigned += retailOpeningResult.assignedCount;
 
 // ============================================================================
 // STEP 4: Assign Remaining Staff to Unfilled Positions
 // ============================================================================
-console.log(`\n   📍 STEP 4: Assigning remaining staff...`);
-
-const hasUnfilledAdmissionsHost = staffingRequirements.some((req) => {
-  if (!req.position.includes('Host') || req.position.includes('Senior Host') || req.position.includes('Break Cover')) {
-    return false;
-  }
-
-  if (getCategoryFromUnit(req.unitName) !== 'Admissions') {
-    return false;
-  }
-
-  const unitPositionKey = `${req.unitName}-${req.position}`;
-  return (filledPositions.get(unitPositionKey) || 0) < req.staffNeeded;
+const step4Result = assignRemainingHostsStep4({
+  staffingRequirements,
+  staffByType,
+  assignedStaff,
+  assignments,
+  filledPositions,
+  zone,
+  dayCode,
+  skillsData,
+  getCategoryFromUnit,
+  hasSkillForUnit,
+  timeToMinutes
 });
+assigned += step4Result.assignedCount;
 
-if (hasUnfilledAdmissionsHost) {
-  console.log('   ⚠️  Admissions host gaps still open - delaying Retail min-passes (Explorer Supplies/APGS)');
-}
 
-// PRE-STEP 4: Explorer Supplies min 2
-const suppliesReq = staffingRequirements.find(r => r.unitName === 'Explorer Supplies');
-if (suppliesReq && !hasUnfilledAdmissionsHost) {
-  const sKey = `${suppliesReq.unitName}-${suppliesReq.position}`;
-  const sFilled = assignments.filter(a => a.unit === 'Explorer Supplies' && !a.isBreak).length;
-  if (sFilled < 2) {
-    for (const host of staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name))) {
-      if (assignments.filter(a => a.unit === 'Explorer Supplies' && !a.isBreak).length >= 2) break;
-      assignments.push({ unit: 'Explorer Supplies', position: suppliesReq.position, positionType: 'Host (Supplies Min)', staff: host.name, zone, dayCode, trainingMatch: 'Explorer Supplies-Host', startTime: host.startTime, endTime: host.endTime, breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail' });
-      assignedStaff.add(host.name); filledPositions.set(sKey, (filledPositions.get(sKey) || 0) + 1);
-      console.log(`   📦 ${host.name} → Explorer Supplies (min 2)`); assigned++;
-    }
-  }
-}
-// PRE-STEP 4: APGS opening cover (10:00) min 2, then optional min 3 overall
-const APGS_UNIT = 'Adventures Point Gift Shop';
-const APGS_OPENING_TIME = '10:00';
-const APGS_OPENING_TARGET = 2;
-const APGS_OVERALL_TARGET = 3;
 
-const apgsReqMin = staffingRequirements.find(r => r.unitName === APGS_UNIT && r.position.includes('Host') && !r.position.includes('Senior'));
-if (apgsReqMin) {
-  const aKey = `${apgsReqMin.unitName}-${apgsReqMin.position}`;
-  const openingMinute = timeToMinutes(APGS_OPENING_TIME);
-  const apgsOpenCoverage = assignments.filter((a) =>
-    a.unit === APGS_UNIT &&
-    !a.isBreak &&
-    a.staff !== 'UNFILLED' &&
-    timeToMinutes(a.startTime) <= openingMinute &&
-    timeToMinutes(a.endTime) > openingMinute
-  ).length;
-
-  if (apgsOpenCoverage < APGS_OPENING_TARGET) {
-    console.log(`   🛍️  APGS opening coverage ${apgsOpenCoverage}/${APGS_OPENING_TARGET} at ${APGS_OPENING_TIME}, topping up...`);
-    for (const host of staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name) && timeToMinutes(s.startTime) <= openingMinute)) {
-      const currentOpenCoverage = assignments.filter((a) =>
-        a.unit === APGS_UNIT &&
-        !a.isBreak &&
-        a.staff !== 'UNFILLED' &&
-        timeToMinutes(a.startTime) <= openingMinute &&
-        timeToMinutes(a.endTime) > openingMinute
-      ).length;
-
-      if (currentOpenCoverage >= APGS_OPENING_TARGET) break;
-
-      assignments.push({ unit: APGS_UNIT, position: apgsReqMin.position, positionType: 'Host (APGS Opening)', staff: host.name, zone, dayCode, trainingMatch: `${APGS_UNIT}-Host`, startTime: host.startTime, endTime: host.endTime, breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail' });
-      assignedStaff.add(host.name);
-      filledPositions.set(aKey, (filledPositions.get(aKey) || 0) + 1);
-      console.log(`   🛍️  ${host.name} → APGS (opening cover ${host.startTime}-${host.endTime})`);
-      assigned++;
-    }
-
-    const finalOpenCoverage = assignments.filter((a) =>
-      a.unit === APGS_UNIT &&
-      !a.isBreak &&
-      a.staff !== 'UNFILLED' &&
-      timeToMinutes(a.startTime) <= openingMinute &&
-      timeToMinutes(a.endTime) > openingMinute
-    ).length;
-    if (finalOpenCoverage < APGS_OPENING_TARGET) {
-      console.log(`   ⚠️  APGS opening still below target: ${finalOpenCoverage}/${APGS_OPENING_TARGET} at ${APGS_OPENING_TIME}`);
-    }
-  }
-
-  if (!hasUnfilledAdmissionsHost) {
-    const sweetFilled = assignments.filter(a => a.unit === 'Sweet Shop' && !a.isBreak).length;
-    const sealifeFilled = assignments.filter(a => a.unit === 'Sealife' && !a.isBreak).length;
-    if (sweetFilled === 0 || sealifeFilled === 0) {
-      console.log(`   ⚠️  APGS min-pass skipped: preserve hosts for Sweet/Sealife coverage first (Sweet=${sweetFilled}, Sealife=${sealifeFilled})`);
-    } else {
-      const aFilled = assignments.filter(a => a.unit === APGS_UNIT && !a.isBreak).length;
-      if (aFilled < APGS_OVERALL_TARGET) {
-        for (const host of staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name))) {
-          if (assignments.filter(a => a.unit === APGS_UNIT && !a.isBreak).length >= APGS_OVERALL_TARGET) break;
-          assignments.push({ unit: APGS_UNIT, position: apgsReqMin.position, positionType: 'Host (APGS Min)', staff: host.name, zone, dayCode, trainingMatch: `${APGS_UNIT}-Host`, startTime: host.startTime, endTime: host.endTime, breakMinutes: host.scheduledBreakMinutes || 0, isBreak: false, category: 'Retail' });
-          assignedStaff.add(host.name);
-          filledPositions.set(aKey, (filledPositions.get(aKey) || 0) + 1);
-          console.log(`   🛍️  ${host.name} → APGS (min ${APGS_OVERALL_TARGET})`);
-          assigned++;
-        }
-      }
-    }
-  }
-}
-
-const STEP4_SKILL_REQUIRED = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sweet Shop', 'Sealife']);
-
-const allRemainingStaff = [
-  ...staffByType.seniorHostsFullShift.filter(s => !assignedStaff.has(s.name)),
-  ...staffByType.regularHostsFullShift.filter(s => !assignedStaff.has(s.name)),
-  ...staffByType.regularHostsShortShift.filter(s => !assignedStaff.has(s.name))
-];
-
-for (const staff of allRemainingStaff) {
-  if (assignedStaff.has(staff.name)) continue;
-  
-  // Find any unfilled Host position
-  const unfilledReq = staffingRequirements.find(req => {
-    const isHost = req.position.includes('Host');
-    const category = getCategoryFromUnit(req.unitName);
-    // ✅ FIX: Check category instead of hardcoded unit names (catches all Retail/Admissions units)
-    const isRetailAdmissions = category === 'Retail' || category === 'Admissions';
-    const notBreakCover = !req.position.includes('Break Cover');
-    // ✅ FIX: Use unit+position key to match how Steps 1-3 track filled positions
-    const unitPositionKey = `${req.unitName}-${req.position}`;
-    const needsStaff = (filledPositions.get(unitPositionKey) || 0) < req.staffNeeded;
-    
-    // Check Senior Host requirements
-    const requiresSeniorHost = req.position.includes('Senior Host');
-    const isSeniorHost = staffByType.seniorHostsFullShift.includes(staff);
-    
-    if (requiresSeniorHost && !isSeniorHost) return false;
-    
-    // ✅ Skill gate: B&J, B&J Kiosk, Sweet Shop, Sealife require trained staff
-    if (STEP4_SKILL_REQUIRED.has(req.unitName) && !hasSkillForUnit(staff.name, req.unitName, skillsData)) return false;
-    
-    return isHost && isRetailAdmissions && notBreakCover && needsStaff;
-  });
-  
-  if (unfilledReq) {
-    assignments.push({
-      unit: unfilledReq.unitName,
-      position: unfilledReq.position,
-      positionType: 'Host (Remaining)',
-      staff: staff.name,
-      zone: zone,
-      dayCode: dayCode,
-      trainingMatch: `${unfilledReq.unitName}-Host`,
-      startTime: staff.startTime,
-      endTime: staff.endTime,
-      breakMinutes: staff.scheduledBreakMinutes || 0,
-      isBreak: false,
-      category: getCategoryFromUnit(unfilledReq.unitName)
-    });
-    
-    assignedStaff.add(staff.name);
-    const unitPosKey = `${unfilledReq.unitName}-${unfilledReq.position}`;
-    filledPositions.set(unitPosKey, (filledPositions.get(unitPosKey) || 0) + 1);
-    console.log(`   ✅ ${staff.name} → ${unfilledReq.unitName} (${staff.startTime}-${staff.endTime})`);
-    assigned++;
-  }
-}
 
 // ============================================================================
 // STEP 5: Assign Overflow Staff to Busy Units (Allow Overstaffing)
