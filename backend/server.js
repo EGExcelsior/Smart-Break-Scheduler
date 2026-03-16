@@ -2769,6 +2769,20 @@ app.post('/api/auto-assign', upload.fields([
               
               // Check if staff has skills for this unit
               if (hasSkillForUnit(staffName, retailUnit, skillsData)) {
+                if (retailUnit === 'Sealife') {
+                  const sealifeTotal = updatedAssignments.filter(
+                    (a) =>
+                      a.unit === 'Sealife' &&
+                      a.staff !== 'UNFILLED' &&
+                      !a.isBreak &&
+                      timeToMinutes(a.startTime) <= timeToMinutes(AFTERNOON_START) &&
+                      timeToMinutes(a.endTime) > timeToMinutes(AFTERNOON_START)
+                  ).length;
+
+                  if (sealifeTotal >= 2) {
+                    continue;
+                  }
+                }
                 targetRetailUnit = retailUnit;
                 console.log(`   ✅ ${staffName}: ${entranceUnit} → ${retailUnit} (skill match)`);
                 break;
@@ -3655,9 +3669,26 @@ for (let i = 0; i < shortShiftNeeded; i++) {
 // ============================================================================
 console.log(`\n   📍 STEP 4: Assigning remaining staff...`);
 
+const hasUnfilledAdmissionsHost = staffingRequirements.some((req) => {
+  if (!req.position.includes('Host') || req.position.includes('Senior Host') || req.position.includes('Break Cover')) {
+    return false;
+  }
+
+  if (getCategoryFromUnit(req.unitName) !== 'Admissions') {
+    return false;
+  }
+
+  const unitPositionKey = `${req.unitName}-${req.position}`;
+  return (filledPositions.get(unitPositionKey) || 0) < req.staffNeeded;
+});
+
+if (hasUnfilledAdmissionsHost) {
+  console.log('   ⚠️  Admissions host gaps still open - delaying Retail min-passes (Explorer Supplies/APGS)');
+}
+
 // PRE-STEP 4: Explorer Supplies min 2
 const suppliesReq = staffingRequirements.find(r => r.unitName === 'Explorer Supplies');
-if (suppliesReq) {
+if (suppliesReq && !hasUnfilledAdmissionsHost) {
   const sKey = `${suppliesReq.unitName}-${suppliesReq.position}`;
   const sFilled = assignments.filter(a => a.unit === 'Explorer Supplies' && !a.isBreak).length;
   if (sFilled < 2) {
@@ -3671,7 +3702,7 @@ if (suppliesReq) {
 }
 // PRE-STEP 4: APGS min 3
 const apgsReqMin = staffingRequirements.find(r => r.unitName === 'Adventures Point Gift Shop' && r.position.includes('Host') && !r.position.includes('Senior'));
-if (apgsReqMin) {
+if (apgsReqMin && !hasUnfilledAdmissionsHost) {
   const sweetFilled = assignments.filter(a => a.unit === 'Sweet Shop' && !a.isBreak).length;
   const sealifeFilled = assignments.filter(a => a.unit === 'Sealife' && !a.isBreak).length;
   if (sweetFilled === 0 || sealifeFilled === 0) {

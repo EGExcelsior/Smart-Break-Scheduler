@@ -29,19 +29,19 @@ const StepTwoReviewAnalysis = ({
 
       {hasAbsenceWithShiftAlerts && (
         <div className="warning-message">
-          <span>⚠️</span>
+          <span className="warning-icon">⚠️</span>
           <div>
-            <p>
+            <p className="warning-title">
               {alertSummary.absenceWithShiftCount} staff member(s) have an Absence Code but also a scheduled shift in TimeGrip.
             </p>
-            <p>
+            <p className="warning-subtitle">
               Tick any names you want to include anyway for this planner run ({includedAbsentStaff.length} selected):
             </p>
             <ul className="warning-list">
               {uniqueAbsenceStaff.map((item) => {
                 const isChecked = includedAbsentStaff.includes(item.name);
                 return (
-                <li key={`${item.name}-${item.startTime}-${item.endTime}`}>
+                <li key={`${item.name}-${item.startTime}-${item.endTime}`} className="warning-list-item">
                   <label className="warning-checkbox-row">
                     <input
                       type="checkbox"
