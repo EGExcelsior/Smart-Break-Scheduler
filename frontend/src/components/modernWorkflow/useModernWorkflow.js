@@ -111,7 +111,7 @@ const useModernWorkflow = () => {
     setError(null);
 
     try {
-      const data = await fetchUnitStatus({ zone, date, dayCode });
+      const data = await fetchUnitStatus({ teamName, zone, date, dayCode });
       setUnits(data.units);
 
       const allUnits = Object.values(data.units).flat();

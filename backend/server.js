@@ -37,6 +37,38 @@ const {
 } = require('./utils/staffTimegripUtils');
 
 const VERBOSE_API_LOGS = process.env.VERBOSE_API_LOGS === 'true';
+const TEAM_UNIT_EXCLUSIONS = {
+  nexus: new Set(['Dragon Treats', "Ben & Jerry's Kiosk"])
+};
+
+function normalizeTeamKey(teamName) {
+  if (!teamName) {
+    return '';
+  }
+  return String(teamName).toLowerCase().replace(/^team\s+/, '').trim();
+}
+
+function getExcludedUnitsForTeam(teamName) {
+  const teamKey = normalizeTeamKey(teamName);
+  return TEAM_UNIT_EXCLUSIONS[teamKey] || new Set();
+}
+
+function filterUnitsForTeam(unitsByCategory, teamName) {
+  const excludedUnits = getExcludedUnitsForTeam(teamName);
+  if (excludedUnits.size === 0) {
+    return unitsByCategory;
+  }
+
+  const filtered = {};
+  for (const [category, unitList] of Object.entries(unitsByCategory)) {
+    const nextUnitList = unitList.filter((unit) => !excludedUnits.has(unit.name));
+    if (nextUnitList.length > 0) {
+      filtered[category] = nextUnitList;
+    }
+  }
+
+  return filtered;
+}
 
 
 const app = express();
@@ -591,7 +623,7 @@ app.post('/api/day-codes-for-zone', express.json(), (req, res) => {
 // ✅ V10.0 NEW: Get unit status with defaults from Closed Days (now from folder!)
 app.post('/api/get-unit-status', express.json(), (req, res) => {
   try {
-    const { zone, date, dayCode } = req.body;
+    const { teamName, zone, date, dayCode } = req.body;
     
     console.log(`\n🔍 API /get-unit-status called with:`);
     console.log(`   Zone: ${zone}`);
@@ -614,7 +646,7 @@ app.post('/api/get-unit-status', express.json(), (req, res) => {
     }
     
     console.log(`\n🔄 Getting unit status for ${zone}...`);
-    const units = getUnitsWithStatus(zoneFilePath, date, dayCode);
+    const units = filterUnitsForTeam(getUnitsWithStatus(zoneFilePath, date, dayCode), teamName);
     
     const categoryNames = Object.keys(units);
     const totalUnits = categoryNames.reduce((sum, category) => sum + units[category].length, 0);
@@ -629,6 +661,7 @@ app.post('/api/get-unit-status', express.json(), (req, res) => {
     res.json({
       success: true,
       units: units,
+      teamName: teamName,
       zone: zone,
       date: date,
       dayCode: dayCode
@@ -1061,10 +1094,15 @@ app.post('/api/auto-assign', upload.fields([
     
     // ✅ V10.0: FILTER staffing requirements based on selected units
     const selectedUnitsArray = selectedUnits ? JSON.parse(selectedUnits) : [];
-    const selectedUnitsCanonical = [...new Set(selectedUnitsArray.map(canonicalizeUnitName))];
-    if (selectedUnitsArray.length > 0) {
+    const excludedUnitsForTeam = getExcludedUnitsForTeam(teamName);
+    const sanitizedSelectedUnits = selectedUnitsArray.filter((unitName) => !excludedUnitsForTeam.has(canonicalizeUnitName(unitName)));
+    if (sanitizedSelectedUnits.length !== selectedUnitsArray.length) {
+      console.log(`   Excluded ${selectedUnitsArray.length - sanitizedSelectedUnits.length} unit(s) not valid for ${normalizeTeamKey(teamName) || 'selected team'}`);
+    }
+    const selectedUnitsCanonical = [...new Set(sanitizedSelectedUnits.map(canonicalizeUnitName))];
+    if (sanitizedSelectedUnits.length > 0) {
       console.log(`\n🔍 Filtering staffing requirements...`);
-      console.log(`   Selected units from frontend: ${selectedUnitsArray.join(', ')}`);
+      console.log(`   Selected units from frontend: ${sanitizedSelectedUnits.join(', ')}`);
       
       const beforeCount = staffingRequirements.length;
       staffingRequirements = staffingRequirements.filter(req => {

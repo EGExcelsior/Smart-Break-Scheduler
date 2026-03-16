@@ -31,8 +31,8 @@ export const fetchDayCodesForZone = async (zone) => {
   return postJson('/api/day-codes-for-zone', { zone });
 };
 
-export const fetchUnitStatus = async ({ zone, date, dayCode }) => {
-  return postJson('/api/get-unit-status', { zone, date, dayCode });
+export const fetchUnitStatus = async ({ teamName, zone, date, dayCode }) => {
+  return postJson('/api/get-unit-status', { teamName, zone, date, dayCode });
 };
 
 export const parseAndAnalyze = async (formData) => {
