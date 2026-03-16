@@ -639,7 +639,7 @@ async function generateExcelPlanner(scheduleData) {
         const assignment = findAssignmentAtTime(assignments, staffName, timeSlot);
           
         if (assignment && assignment.hasBriefing && timeSlot === '09:15') {
-          cell.value = 'MAIN STAGE BRIEF';
+          cell.value = 'LODGE BRIEF';
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD700' } };
           cell.font = { bold: true, size: 9, color: { argb: 'FF000000' } };
           cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };

@@ -31,7 +31,7 @@
 
 .stat-card.highlight {
   background: #f3e5f5;
-  border-left-color: #764ba2;
+  border-left-color: var(--mw-accent-500);
 }
 
 .stat-value {
@@ -85,13 +85,13 @@
 }
 
 .primary-button {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--mw-brand-500) 0%, var(--mw-accent-500) 100%);
   color: white;
 }
 
 .primary-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 8px 20px rgba(var(--mw-brand-rgb), 0.3);
 }
 
 .primary-button:disabled,
@@ -103,14 +103,14 @@
 
 .secondary-button {
   background: #e8eaf6;
-  color: #667eea;
-  border: 1px solid #667eea;
+  color: var(--mw-brand-500);
+  border: 1px solid var(--mw-brand-500);
 }
 
 .secondary-button:hover:not(:disabled) {
   background: #d7dff1;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+  box-shadow: 0 4px 12px rgba(var(--mw-brand-rgb), 0.2);
 }
 
 .spinner {
@@ -124,8 +124,8 @@
 }
 
 .secondary-button .spinner {
-  border-color: rgba(102, 126, 234, 0.3);
-  border-top-color: #667eea;
+  border-color: rgba(var(--mw-brand-rgb), 0.3);
+  border-top-color: var(--mw-brand-500);
 }
 
 @keyframes spin {

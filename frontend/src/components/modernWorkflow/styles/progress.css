@@ -26,19 +26,19 @@
   height: 40px;
   border-radius: 50%;
   background: white;
-  color: #667eea;
+  color: var(--mw-brand-500);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  border: 3px solid #667eea;
+  border: 3px solid var(--mw-brand-500);
   transition: all 0.3s ease;
 }
 
 .progress-step.active .step-number {
-  background: #667eea;
+  background: var(--mw-brand-500);
   color: white;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 15px rgba(var(--mw-brand-rgb), 0.4);
 }
 
 .progress-step.completed .step-number {

@@ -112,10 +112,26 @@ const UNIT_CATEGORIES = {
   ]
 };
 
+function canonicalizeUnitName(unitName) {
+  if (!unitName || typeof unitName !== 'string') {
+    return unitName;
+  }
+
+  const compact = unitName.trim().replace(/\s+/g, ' ');
+  const lower = compact.toLowerCase();
+
+  if (lower === 'sea life' || lower === 'sealife') {
+    return 'Sealife';
+  }
+
+  return compact;
+}
+
 // Helper function to get category from unit name
 function getCategoryFromUnit(unitName) {
+  const canonicalUnit = canonicalizeUnitName(unitName);
   for (const [category, unitList] of Object.entries(UNIT_CATEGORIES)) {
-    if (unitList.includes(unitName)) {
+    if (unitList.some((unit) => canonicalizeUnitName(unit) === canonicalUnit)) {
       return category;
     }
   }
@@ -196,10 +212,11 @@ function snapToNearestHour(minutesSinceMidnight) {
 function hasSkillForUnit(staffName, targetUnit, skillsData) {
   const staff = skillsData.staffWithGreen.find(s => s.name === staffName);
   if (!staff) return false;
+  const canonicalTargetUnit = canonicalizeUnitName(targetUnit);
   
   // ✅ NEW: For Rides units, Rides T1 break cover can cover any ride
   // Check if this is a Rides unit
-  const category = getCategoryFromUnit(targetUnit);
+  const category = getCategoryFromUnit(canonicalTargetUnit);
   if (category === 'Rides') {
     // Rides T1 staff (break cover) can cover any rides position
     // No specific skill check needed - they're trained as general rides BC
@@ -216,7 +233,7 @@ function hasSkillForUnit(staffName, targetUnit, skillsData) {
     "Ben & Jerry's Kiosk": "Ben & Jerry's"
   };
   
-  const requiredSkill = unitSkillMap[targetUnit];
+  const requiredSkill = unitSkillMap[canonicalTargetUnit];
   if (!requiredSkill) return false;
   
   // ✅ Handle both plain strings ("Ben & Jerry's-HOST") and objects ({fullSkill: "..."})
@@ -229,12 +246,13 @@ function hasSkillForUnit(staffName, targetUnit, skillsData) {
 
 // ✅ V12: Get position name for a unit
 function getPositionForUnit(unit) {
+  const canonicalUnit = canonicalizeUnitName(unit);
   const positionMap = {
     'Gift Shop': 'Retail Host', 'Adventures Point Gift Shop': 'Retail Host', 'Sweet Shop': 'Retail Host', 'Sealife': 'Retail Host',
     'Lodge Entrance': 'Admissions Host', 'Azteca Entrance': 'Admissions Host', 'Explorer Entrance': 'Admissions Host', 'Schools Entrance': 'Admissions Host',
     'Car Parks - Staff Car Park': 'Car Parks Host', 'Car Parks - Hotel Car Park': 'Car Parks Host'
   };
-  return positionMap[unit] || `${unit} Host`;
+  return positionMap[canonicalUnit] || `${canonicalUnit} Host`;
 }
 
 // ✅ V12: Stagger breaks to prevent same-unit simultaneous breaks
@@ -419,6 +437,7 @@ function getStaffTrainedUnits(staff) {
 // ✅ V10.0: Check for generic skill matches with proper precedence
 function getGenericSkillMatch(unitName, requiredPosition) {
   const unitLower = unitName.toLowerCase();
+  const canonicalUnit = canonicalizeUnitName(unitName);
   const skillType = matchPositionToSkill(requiredPosition);
   
   // ✅ CAR PARKS FIRST - Must check before schools to avoid confusion
@@ -440,7 +459,7 @@ function getGenericSkillMatch(unitName, requiredPosition) {
   if (unitLower.includes('sweet shop')) {
     return `Sweet Shop-${skillType}`;
   }
-  if (unitLower.includes('sealife') || unitLower.includes('sea life')) {
+  if (canonicalUnit === 'Sealife') {
     return `Sea Life-${skillType}`;
   }
   if (unitLower.includes('ben') && unitLower.includes('jerry')) {
@@ -2427,29 +2446,34 @@ app.post('/api/auto-assign', upload.fields([
     
     // ✅ V10.0: FILTER staffing requirements based on selected units
     const selectedUnitsArray = selectedUnits ? JSON.parse(selectedUnits) : [];
+    const selectedUnitsCanonical = [...new Set(selectedUnitsArray.map(canonicalizeUnitName))];
     if (selectedUnitsArray.length > 0) {
       console.log(`\n🔍 Filtering staffing requirements...`);
       console.log(`   Selected units from frontend: ${selectedUnitsArray.join(', ')}`);
       
       const beforeCount = staffingRequirements.length;
       staffingRequirements = staffingRequirements.filter(req => {
-        return selectedUnitsArray.includes(req.unitName);
+        return selectedUnitsCanonical.includes(canonicalizeUnitName(req.unitName));
       });
       const afterCount = staffingRequirements.length;
       
       console.log(`\n✅ Filtered to ${afterCount} selected units (removed ${beforeCount - afterCount} unselected)`);
       
       // ✅ FIX: Add requirements for selected units that Day Code doesn't include
-      const unitsWithRequirements = new Set(staffingRequirements.map(r => r.unitName));
-      const missingSelectedUnits = selectedUnitsArray.filter(unit => !unitsWithRequirements.has(unit));
+      const unitsWithRequirements = new Set(staffingRequirements.map((r) => canonicalizeUnitName(r.unitName)));
+      const missingSelectedUnits = selectedUnitsCanonical.filter((unit) => !unitsWithRequirements.has(unit));
       
       if (missingSelectedUnits.length > 0) {
         console.log(`\n📝 Adding requirements for selected units not in Day Code ${dayCode}:`);
         const closedDaysStatus = getClosedDaysStatus(zoneFilePath, date, dayCode);
+        const closedDaysCanonical = new Map(
+          Object.entries(closedDaysStatus).map(([name, status]) => [canonicalizeUnitName(name), status])
+        );
         
-        for (const unitName of missingSelectedUnits) {
+        for (const selectedUnitName of missingSelectedUnits) {
+          const unitName = canonicalizeUnitName(selectedUnitName);
           // Only add if unit is Open in Closed Days
-          if (closedDaysStatus[unitName] !== false) {
+          if (closedDaysCanonical.get(unitName) !== false) {
             // Determine position type based on unit category
             const category = getCategoryFromUnit(unitName);
             
@@ -3427,7 +3451,7 @@ console.log(`\n   📍 STEP 2: Assigning full-shift Hosts for all-day coverage..
 // ✅ BUILD DYNAMIC ASSIGNMENT LIST from unfilled retail/admissions requirements
 const fullShiftAssignments = [];
 const retailAdmissionsUnits = staffingRequirements.filter(r => 
-  (r.unitName.includes('Shop') || r.unitName.includes('Sealife') || r.unitName.includes('Entrance')) &&
+  (r.unitName.includes('Shop') || canonicalizeUnitName(r.unitName) === 'Sealife' || r.unitName.includes('Entrance')) &&
   r.position.includes('Host') &&
   !r.position.includes('Senior Host') &&
   !r.position.includes('Break Cover')
@@ -3444,6 +3468,69 @@ for (const req of retailAdmissionsUnits) {
 
 // Units that require specific skills — only trained staff should be assigned
 const SKILL_GATED_STEP2 = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sealife', 'Sweet Shop']);
+
+// ============================================================================
+// RETAIL RESERVE PRE-PASS: Protect trained hosts for hard skill-gated units
+// ============================================================================
+const RETAIL_RESERVE_UNITS = ['Sealife', 'Sweet Shop'];
+for (const reserveUnit of RETAIL_RESERVE_UNITS) {
+  const reserveReqs = staffingRequirements.filter((req) =>
+    req.unitName === reserveUnit &&
+    req.position.includes('Host') &&
+    !req.position.includes('Senior Host') &&
+    !req.position.includes('Break Cover')
+  );
+
+  if (reserveReqs.length === 0) {
+    continue;
+  }
+
+  const neededTotal = reserveReqs.reduce((sum, req) => {
+    const key = `${req.unitName}-${req.position}`;
+    const remaining = req.staffNeeded - (filledPositions.get(key) || 0);
+    return sum + Math.max(0, remaining);
+  }, 0);
+
+  if (neededTotal <= 0) {
+    continue;
+  }
+
+  const trainedAvailable = staffByType.regularHostsFullShift.filter(
+    (staff) => !assignedStaff.has(staff.name) && hasSkillForUnit(staff.name, reserveUnit, skillsData)
+  );
+
+  console.log(`   🧭 Reserve pre-pass for ${reserveUnit}: need ${neededTotal}, trained available ${trainedAvailable.length}`);
+
+  for (const req of reserveReqs) {
+    const key = `${req.unitName}-${req.position}`;
+    while ((filledPositions.get(key) || 0) < req.staffNeeded) {
+      const reserveHost = trainedAvailable.find((staff) => !assignedStaff.has(staff.name));
+      if (!reserveHost) {
+        break;
+      }
+
+      assignments.push({
+        unit: req.unitName,
+        position: req.position,
+        positionType: 'Host (Reserved Skill Gate)',
+        staff: reserveHost.name,
+        zone,
+        dayCode,
+        trainingMatch: `${req.unitName}-Host`,
+        startTime: reserveHost.startTime,
+        endTime: reserveHost.endTime,
+        breakMinutes: reserveHost.scheduledBreakMinutes || 0,
+        isBreak: false,
+        category: getCategoryFromUnit(req.unitName)
+      });
+
+      assignedStaff.add(reserveHost.name);
+      filledPositions.set(key, (filledPositions.get(key) || 0) + 1);
+      assigned++;
+      console.log(`   ✅ [RESERVE] ${reserveHost.name} → ${req.unitName} (${reserveHost.startTime}-${reserveHost.endTime})`);
+    }
+  }
+}
 
 for (const assignment of fullShiftAssignments) {
   for (let i = 0; i < assignment.count; i++) {
@@ -3724,7 +3811,7 @@ const availableUnits = staffingRequirements
     r.position.includes('Host') && 
     !r.position.includes('Senior Host') &&
     !r.position.includes('Break Cover') &&
-    (r.unitName.includes('Entrance') || r.unitName.includes('Shop') || r.unitName.includes('Sealife') || r.unitName.includes('Supplies') || r.unitName.includes('Jerry') || r.unitName.includes('Lorikeets'))
+    (r.unitName.includes('Entrance') || r.unitName.includes('Shop') || canonicalizeUnitName(r.unitName) === 'Sealife' || r.unitName.includes('Supplies') || r.unitName.includes('Jerry') || r.unitName.includes('Lorikeets'))
   )
   .map(r => r.unitName);
 

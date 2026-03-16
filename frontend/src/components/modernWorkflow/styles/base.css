@@ -1,3 +1,10 @@
+:root {
+  --mw-brand-500: #667eea;
+  --mw-brand-600: #5568d3;
+  --mw-accent-500: #764ba2;
+  --mw-brand-rgb: 102, 126, 234;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -6,7 +13,7 @@
 
 .modern-workflow {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--mw-brand-500) 0%, var(--mw-accent-500) 100%);
   padding: 40px 20px;
 }
 
@@ -35,7 +42,7 @@
 }
 
 .selection-count {
-  color: #667eea;
+  color: var(--mw-brand-500);
   font-weight: 600;
 }
 

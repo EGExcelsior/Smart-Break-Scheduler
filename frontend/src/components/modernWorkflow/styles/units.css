@@ -33,7 +33,7 @@
 }
 
 .category-count {
-  background: #667eea;
+  background: var(--mw-brand-500);
   color: white;
   padding: 4px 10px;
   border-radius: 20px;
@@ -62,14 +62,14 @@
 
 .unit-checkbox:hover {
   background: #f5f5ff;
-  border-color: #667eea;
+  border-color: var(--mw-brand-500);
 }
 
 .unit-checkbox input {
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: #667eea;
+  accent-color: var(--mw-brand-500);
 }
 
 .checkbox-label {
@@ -98,7 +98,7 @@
 
 .unit-checkbox--group:hover {
   background: #ede8ff;
-  border-color: #667eea;
+  border-color: var(--mw-brand-500);
 }
 
 .unit-checkbox--group .checkbox-label {
@@ -126,12 +126,12 @@
 
 .quick-button.secondary {
   background: #e8eaf6;
-  color: #667eea;
-  border: 1px solid #667eea;
+  color: var(--mw-brand-500);
+  border: 1px solid var(--mw-brand-500);
 }
 
 .quick-button.secondary:hover {
   background: #d7dff1;
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
+  box-shadow: 0 4px 8px rgba(var(--mw-brand-rgb), 0.2);
 }
