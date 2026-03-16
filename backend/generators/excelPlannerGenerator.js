@@ -14,153 +14,22 @@
 
 const ExcelJS = require('exceljs');
 const { namesMatch } = require('../utils/nameMatching');
-
-// === RIDE COLOR MAPPING (from Chessington Skills Matrix) ===
-const RIDE_COLORS = {
-  // === NEXUS ZONE ===
-  'Adventure Tree': 'FFC28446',
-  'Tiny Truckers': 'FFD600B8',
-  "Griffin's Galleon": 'FFFFC000',
-  "Griffin's Galeon": 'FFFFC000',
-  'Sea Dragons': 'FF33CCCC',
-  "Elmer's Flying Jumbos": 'FFFFAFD7',
-  "Dragon's Playhouse": 'FF009242',
-  'Canopy Capers': 'FF70AD47',
-  'Room on the Broom': 'FF7030A0',
-  
-  // === ODYSSEY ZONE ===
-  "Dragon's Fury": 'FFFF9999',
-  'Rattlesnake': 'FF4F81BD',
-  'Zufari': 'FFFFFFCC',
-  'Croc Drop': 'FFC0504D',
-  'River Rafts': 'FFF79646',
-  'Tomb Blaster': 'FFCD9B69',
-  'Jungle Rangers': 'FF4BACC6',
-  'Tree Top Hoppers': 'FFC0504D',
-  'Treetop Hoppers': 'FFC0504D',
-  'Monkey Swinger': 'FFD9D9D9',
-  
-  "Paw Patrol Chase's": 'FF9BBB59',
-  "Chase's": 'FF9BBB59',
-  "Paw Patrol Marshall's": 'FFF56B6B',
-  "Marshall's": 'FFF56B6B',
-  "Paw Patrol Skye's": 'FF8064A2',
-  "Skye's": 'FF8064A2',
-  "Paw Patrol Zuma's": 'FFFFC000',
-  "Zumas's": 'FFFFC000',
-  
-  // === PHANTOM ZONE ===
-  'Vampire': 'FF8064A2',
-  'Mandrill Mayhem': 'FF4BACC6',
-  'Tiger Rock': 'FFFFC000',
-  'Gruffalo River Ride': 'FFFB7A05',
-  'Gruffalo': 'FFFB7A05',
-  'Ostrich Stampede': 'FF968476',
-  'Blue Barnacle': 'FF0070C0',
-  'Seastorm': 'FF00B0F0',
-  'Mamba Strike': 'FFC00000',
-  'Barrel Bail Out': 'FFC28446',
-  'Trawler Trouble': 'FFF79646',
-  
-  // === RETAIL ===
-  'Adventure Point Gift Shop': 'FFC28446',
-  'Adventures Point Gift Shop': 'FFC28446',
-  'Sweet Shop': 'FFFFAFD7',
-  'Sealife': 'FF00B0F0',
-  'Sea Life': 'FF00B0F0',
-  "Ben & Jerry's": 'FF5B9BD5',
-  "Ben & Jerry's Kiosk": 'FF5B9BD5',
-  'Ben and Jerry\'s Kiosk': 'FF5B9BD5',
-  'Explorer Supplies': 'FFC55A54',
-  'Lorikeets': 'FF70AD47',
-  'Dragon Treats': 'FF00B050',
-  
-  'Paw Patrol Shop': 'FF00B0F0',
-  'Croc Drop Shop': 'FF4BACC6',
-  'Gruffalo Shop': 'FFFB7A05',
-  'Gruffalo Gift Shop': 'FFFB7A05',
-  'Jumanji Shop': 'FF3C7D22',
-  'Shipwreck Kiosk': 'FFC28446',
-  'Tiger Kiosk': 'FFFFC000',
-  
-  // === ADMISSIONS ===
-  'Admissions': 'FF4BACC6',
-  'Lodge Entrance': 'FF4BACC6',
-  'Explorer Entrance': 'FF4BACC6',
-  'Azteca Entrance': 'FF2E75B6',
-  'Schools Entrance': 'FF4BACC6',
-  
-  // === GHI ===
-  'GHI - Hub': 'FFFFFF99',
-  'GHI - Help Squad': 'FFFFFF99',
-  'GHI - Rap': 'FFFFFF99',
-  
-  // === CAR PARKS ===
-  'Car Parks - Staff Car Park': 'FF808080',
-  'Car Parks - Hotel Car Park': 'FF808080',
-  
-  // === BREAK COVER ===
-  'Rides Break Cover': 'FFFF6600',
-  'Retail Break Cover': 'FFFF9900',
-};
-
-// === SENIOR HOST HIGHLIGHTING ===
-const SENIOR_HOST_COLOR = 'FFB9CDE5';  // Light blue (theme 4, tint 0.6)
+const {
+  SENIOR_HOST_COLOR,
+  getRideColor,
+  getUnitAbbreviation
+} = require('./excelPlannerConstants');
+const {
+  addSpacerRow,
+  renderZonalLeadsSection,
+  renderIssuesSection,
+  renderUnassignedSection
+} = require('./excelLayoutHelpers');
 
 // Helper function to check if a staff member is a Senior Host (with fuzzy name matching)
 function isSeniorHost(staffName, seniorHostList) {
   if (!seniorHostList || seniorHostList.length === 0) return false;
   return seniorHostList.some(seniorName => namesMatch(staffName, seniorName));
-}
-
-function getRideColor(unitName) {
-  if (!unitName) return null;
-  const baseName = unitName
-    .replace(/ ?-? ?(OP|ATT|Operator|Attendant|Host|Driver|Skill|Senior)$/i, '')
-    .trim();
-  
-  if (RIDE_COLORS[baseName]) {
-    return RIDE_COLORS[baseName];
-  }
-  
-  for (const [ride, color] of Object.entries(RIDE_COLORS)) {
-    if (baseName.toLowerCase().includes(ride.toLowerCase()) || 
-        ride.toLowerCase().includes(baseName.toLowerCase())) {
-      return color;
-    }
-  }
-  
-  return 'FFD9D9D9';
-}
-
-const UNIT_ABBREVIATIONS = {
-  'Adventures Point Gift Shop': 'APGS', 'Adventure Point Gift Shop': 'APGS',
-  'Sweet Shop': 'SWEET', 'Sealife': 'SEA LIFE', 'Sea Life': 'SEA LIFE',
-  "Ben & Jerry's": "B&Js", "Ben & Jerry's Kiosk": 'B&Js KIOSK',
-  'Dragon Treats': 'DRAGON TREATS', 'Lorikeets': 'LORIKEETS',
-  'Croc Drop Shop': 'CROC SHOP', 'Freestyle & Vending': 'FREESTYLE',
-  'Paw Patrol Shop': 'PAW SHOP', 'Zufari Barrow': 'ZUFARI BAR',
-  'Gruffalo Shop': 'GRUFF SHOP', 'Gruffalo Gift Shop': 'GRUFF SHOP',
-  'Jumanji Shop': 'JUMANJI', 'Shipwreck Kiosk': 'SHIPWRECK', 'Tiger Kiosk': 'TIGER KIOSK',
-  'Lodge Entrance': 'LODGE', 'Explorer Entrance': 'EXPLORER',
-  'Azteca Entrance': 'AZTECA', 'Schools Entrance': 'SCHOOLS',
-  'Explorer Supplies': 'SUPPLIES',
-  'GHI - Hub': 'GHI', 'GHI - Help Squad': 'GHI', 'GHI - Rap': 'GHI',
-  'Car Parks - Staff Car Park': 'CAR PARKS', 'Car Parks - Hotel Car Park': 'CAR PARKS',
-  'Car Parks - Express': 'CAR PARKS', 'Car Parks - Split': 'CAR PARKS',
-  'Car Parks - Flamingo': 'CAR PARKS', 'Car Parks - Giraffe': 'CAR PARKS',
-  'Car Parks - Gorilla': 'CAR PARKS', 'Car Parks - Additional Schools': 'CAR PARKS',
-  'Retail Break Cover': 'RETAIL BC', 'Rides Break Cover': 'RIDES BC',
-};
-
-function getUnitAbbreviation(unitName) {
-  if (!unitName) return null;
-  if (UNIT_ABBREVIATIONS[unitName]) return UNIT_ABBREVIATIONS[unitName];
-  for (const [key, abbr] of Object.entries(UNIT_ABBREVIATIONS)) {
-    if (unitName.toLowerCase().includes(key.toLowerCase()) ||
-        key.toLowerCase().includes(unitName.toLowerCase())) return abbr;
-  }
-  return null;
 }
 
 function formatPositionName(unit, position, trainingMatch) {
@@ -286,18 +155,182 @@ function findAssignmentAtTime(assignments, staffName, timeSlot) {
   return baseMatch;
 }
 
-// ✅ NEW: Get unit category icon
-function getUnitIcon(unitName) {
-  const lower = unitName.toLowerCase();
-  
-  if (lower.includes('entrance') || lower.includes('admissions')) return '🎫';
-  if (lower.includes('shop') || lower.includes('retail') || lower.includes('kiosk') || 
-      lower.includes('sealife') || lower.includes('lorikeets') || lower.includes('ben')) return '🛍️';
-  if (lower.includes('car park')) return '🚗';
-  if (lower.includes('ghi')) return '🎧';
-  if (lower.includes('break cover')) return '🔄';
-  
-  return '🎢'; // Default for rides
+function setThinBorder(cell, useBlackColor = false) {
+  const color = useBlackColor ? { color: { argb: 'FF000000' } } : {};
+  cell.border = {
+    top: { style: 'thin', ...color },
+    bottom: { style: 'thin', ...color },
+    left: { style: 'thin', ...color },
+    right: { style: 'thin', ...color }
+  };
+}
+
+function stylePlannerTimeCell(cell, timeSlot, assignment, explorerUnits, explorerColor, options = {}) {
+  const {
+    useExplorerHighlight = true,
+    breakBorderWithBlack = false
+  } = options;
+
+  if (assignment && assignment.hasBriefing && timeSlot === '09:15') {
+    cell.value = 'LODGE BRIEF';
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD700' } };
+    cell.font = { bold: true, size: 9, color: { argb: 'FF000000' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    return;
+  }
+
+  if (cell.value === 'BREAK') {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+    cell.font = { bold: true, size: 9, color: { argb: 'FF000000' } };
+    setThinBorder(cell, breakBorderWithBlack);
+  } else if (cell.value && cell.value.toString().startsWith('Home @')) {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+    cell.font = { italic: true, size: 9, color: { argb: 'FF595959' } };
+  } else if (assignment && (assignment.unit || assignment.isCovering)) {
+    const displayUnit = assignment.isCovering ? assignment.coverageUnit : assignment.unit;
+    const isExplorerUnit = useExplorerHighlight && explorerUnits && explorerUnits.includes(displayUnit);
+
+    if (isExplorerUnit && explorerColor) {
+      const explorerArgb = explorerColor.replace('#', 'FF');
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: explorerArgb } };
+      cell.font = { bold: true, size: 8, color: { argb: 'FF000000' } };
+    } else {
+      const rideColor = getRideColor(displayUnit);
+      if (rideColor) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rideColor } };
+        cell.font = { bold: true, size: 8, color: { argb: 'FF000000' } };
+      }
+    }
+  }
+
+  cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  setThinBorder(cell);
+}
+
+function styleStaffNameCell(cell, staffName, seniorHostStaff) {
+  cell.font = { bold: true, size: 10 };
+  setThinBorder(cell);
+
+  if (isSeniorHost(staffName, seniorHostStaff)) {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: SENIOR_HOST_COLOR }
+    };
+  }
+}
+
+function makeAssignmentLookupKey(staffName, timeSlot) {
+  return `${normalizeForMatching(staffName)}|${timeSlot}`;
+}
+
+function buildStaffTimeLookup(assignments, staffNames, timeSlots) {
+  const lookup = new Map();
+  for (const staffName of staffNames) {
+    for (const timeSlot of timeSlots) {
+      const assignment = findAssignmentAtTime(assignments, staffName, timeSlot);
+      lookup.set(makeAssignmentLookupKey(staffName, timeSlot), assignment);
+    }
+  }
+  return lookup;
+}
+
+function getLookupAssignment(lookup, staffName, timeSlot) {
+  return lookup.get(makeAssignmentLookupKey(staffName, timeSlot)) || null;
+}
+
+function buildStaffRowValues(staffName, timeSlots, staffEndTime, lookup) {
+  const row = [staffName];
+
+  for (const timeSlot of timeSlots) {
+    const assignment = getLookupAssignment(lookup, staffName, timeSlot);
+
+    if (assignment) {
+      if (assignment.isBreak) {
+        row.push('BREAK');
+      } else if (assignment.isCovering) {
+        row.push(formatPositionName(assignment.coverageUnit, assignment.coveragePosition, false));
+      } else {
+        row.push(formatPositionName(assignment.unit, assignment.position, assignment.trainingMatch));
+      }
+    } else if (staffEndTime && timeSlot === staffEndTime) {
+      row.push(getHomeLabel(staffEndTime));
+    } else {
+      row.push('');
+    }
+  }
+
+  return row;
+}
+
+function renderStaffTableSection({
+  worksheet,
+  title,
+  titleColor,
+  staffNames,
+  timeSlots,
+  rowHeight,
+  assignments,
+  explorerUnits,
+  explorerColor,
+  seniorHostStaff,
+  useExplorerHighlight,
+  breakBorderWithBlack,
+  preSpacerHeight = 0,
+  postSpacerHeight = 0
+}) {
+  if (!staffNames || staffNames.length === 0) return;
+
+  const lastColLetter = String.fromCharCode(64 + timeSlots.length + 1);
+
+  if (preSpacerHeight > 0) {
+    const spacerRow = worksheet.addRow([]);
+    spacerRow.height = preSpacerHeight;
+    worksheet.mergeCells(`A${spacerRow.number}:${lastColLetter}${spacerRow.number}`);
+  }
+
+  const sectionRow = worksheet.addRow([]);
+  const sectionCell = sectionRow.getCell(1);
+  sectionCell.value = title;
+  sectionCell.font = { size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
+  sectionCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: titleColor } };
+  worksheet.mergeCells(`A${sectionRow.number}:${lastColLetter}${sectionRow.number}`);
+  sectionCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  sectionRow.height = 25;
+
+  const headerRow = worksheet.addRow(['STAFF NAME', ...timeSlots]);
+  const headerRowObj = worksheet.getRow(headerRow.number);
+  headerRowObj.font = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } };
+  headerRowObj.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+  headerRowObj.alignment = { horizontal: 'center', vertical: 'middle' };
+  headerRowObj.height = 18;
+
+  const lookup = buildStaffTimeLookup(assignments, staffNames, timeSlots);
+
+  for (const staffName of staffNames) {
+    const staffEndTime = getStaffEndTime(assignments, staffName);
+    const rowValues = buildStaffRowValues(staffName, timeSlots, staffEndTime, lookup);
+    const staffRow = worksheet.addRow(rowValues);
+    staffRow.height = rowHeight;
+
+    for (let col = 2; col <= timeSlots.length + 1; col++) {
+      const cell = staffRow.getCell(col);
+      const timeSlot = timeSlots[col - 2];
+      const assignment = getLookupAssignment(lookup, staffName, timeSlot);
+
+      stylePlannerTimeCell(cell, timeSlot, assignment, explorerUnits, explorerColor, {
+        useExplorerHighlight,
+        breakBorderWithBlack
+      });
+    }
+
+    styleStaffNameCell(staffRow.getCell(1), staffName, seniorHostStaff);
+  }
+
+  if (postSpacerHeight > 0) {
+    const spacerRow = worksheet.addRow([]);
+    spacerRow.height = postSpacerHeight;
+  }
 }
 
 // ✅ NEW: Categorize unit type
@@ -318,7 +351,6 @@ function getUnitCategory(unitName) {
 // ✅ NEW: Group staff by their primary unit
 function groupStaffByUnit(assignments, staffList) {
   const unitGroups = new Map(); // unit name -> [staff names]
-  const staffPrimaryUnit = new Map(); // staff name -> primary unit
   
   // Calculate where each staff spends most time
   for (const staff of staffList) {
@@ -344,8 +376,6 @@ function groupStaffByUnit(assignments, staffList) {
     let maxUnit = firstNonTemp?.unit || sortedByStart[0]?.unit || null;
     
     if (maxUnit) {
-      staffPrimaryUnit.set(staff.name, maxUnit);
-      
       if (!unitGroups.has(maxUnit)) {
         unitGroups.set(maxUnit, []);
       }
@@ -353,7 +383,7 @@ function groupStaffByUnit(assignments, staffList) {
     }
   }
   
-  return { unitGroups, staffPrimaryUnit };
+  return { unitGroups };
 }
 
 async function generateExcelPlanner(scheduleData) {
@@ -362,13 +392,10 @@ async function generateExcelPlanner(scheduleData) {
     date,
     dayCode,
     dayCodeName,
-    dayCodeDescription,
     assignments,
     staffList,
     statistics,
     alerts,
-    competencyWarnings,
-    parkWideUnits,
     explorerColor,   // ✅ Color for Explorer units
     explorerUnits,   // ✅ List of Explorer units to highlight
     seniorHostStaff  // ✅ List of Senior Host staff names
@@ -388,6 +415,7 @@ async function generateExcelPlanner(scheduleData) {
   
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Break Planner');
+  const TOP_SECTION_END_COL = 'G';
   
   // ========================================================================
   // TITLE & INFO SECTION
@@ -433,8 +461,7 @@ async function generateExcelPlanner(scheduleData) {
     fgColor: { argb: 'FFE7E6E6' }
   };
   
-  worksheet.addRow([]);
-  worksheet.lastRow.height = 6;  // ✅ Thin spacer row
+  addSpacerRow(worksheet, 6); // ✅ Thin spacer row
   
   // ========================================================================
   // ZONAL LEADS SECTION
@@ -445,94 +472,13 @@ async function generateExcelPlanner(scheduleData) {
     return posLower.includes('zonal lead') || posLower === 'zonal leads';
   });
   
-  const zonalLeadNames = new Set();
-  
-  if (zonalLeads.length > 0) {
-    const leadsHeaderRow = worksheet.addRow([]);
-    const leadsHeader = leadsHeaderRow.getCell(1);
-    leadsHeader.value = '🔑 ZONAL LEADS - ROAMING';
-    leadsHeader.font = { size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
-    leadsHeader.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF70AD47' }
-    };
-    worksheet.mergeCells(`A${leadsHeaderRow.number}:G${leadsHeaderRow.number}`);
-    leadsHeader.alignment = { horizontal: 'center', vertical: 'middle' };
-    leadsHeaderRow.height = 20;
-    
-    for (const lead of zonalLeads) {
-      zonalLeadNames.add(lead.staff);
-      
-      const leadRow = worksheet.addRow([
-        `${lead.staff} (${lead.startTime} - ${lead.endTime})`
-      ]);
-      
-      leadRow.getCell(1).font = { size: 11, bold: true, color: { argb: 'FF000000' } };
-      leadRow.getCell(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE2EFD9' }
-      };
-      
-      worksheet.mergeCells(`A${leadRow.number}:G${leadRow.number}`);
-    }
-    
-    worksheet.addRow([]);
-    worksheet.lastRow.height = 6;  // ✅ Thin spacer row
-  }
+  renderZonalLeadsSection(worksheet, zonalLeads, TOP_SECTION_END_COL);
 
   // ========================================================================
   // ISSUES SECTION (e.g. Absence code with scheduled shifts)
   // ========================================================================
 
-  const absenceWithShiftIssues = alerts?.absenceWithShift || [];
-  const issuesHeaderRow = worksheet.addRow([]);
-  const issuesHeader = issuesHeaderRow.getCell(1);
-  const hasIssues = absenceWithShiftIssues.length > 0;
-
-  issuesHeader.value = hasIssues
-    ? `⚠️ ISSUES TO REVIEW (${absenceWithShiftIssues.length})`
-    : '✅ ISSUES TO REVIEW (0)';
-  issuesHeader.font = { size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
-  issuesHeader.fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: hasIssues ? 'FFF4B183' : 'FF70AD47' }
-  };
-  worksheet.mergeCells(`A${issuesHeaderRow.number}:G${issuesHeaderRow.number}`);
-  issuesHeader.alignment = { horizontal: 'center', vertical: 'middle' };
-  issuesHeaderRow.height = 20;
-
-  if (hasIssues) {
-    for (const issue of absenceWithShiftIssues) {
-      const issueStatus = issue.includedByOverride ? 'INCLUDED BY OVERRIDE' : 'SKIPPED';
-      const issueRow = worksheet.addRow([
-        `${issue.name} (${issue.startTime} - ${issue.endTime}) | ${issue.plannedFunction} | Absence Code: ${issue.absenceCode}${issue.absenceReason ? ` - ${issue.absenceReason}` : ''} | ${issueStatus}`
-      ]);
-
-      issueRow.getCell(1).font = { size: 10, bold: true, color: { argb: 'FF7F6000' } };
-      issueRow.getCell(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFFFF2CC' }
-      };
-
-      worksheet.mergeCells(`A${issueRow.number}:G${issueRow.number}`);
-    }
-  } else {
-    const noIssuesRow = worksheet.addRow(['No issues detected from TimeGrip absence checks.']);
-    noIssuesRow.getCell(1).font = { size: 10, bold: true, color: { argb: 'FF1B5E20' } };
-    noIssuesRow.getCell(1).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFE2F0D9' }
-    };
-    worksheet.mergeCells(`A${noIssuesRow.number}:G${noIssuesRow.number}`);
-  }
-
-  worksheet.addRow([]);
-  worksheet.lastRow.height = 6;
+  renderIssuesSection(worksheet, alerts, TOP_SECTION_END_COL);
   
   // ========================================================================
   // TIME SLOTS
@@ -577,7 +523,7 @@ async function generateExcelPlanner(scheduleData) {
   // ✅ GROUP STAFF BY UNIT
   // ========================================================================
   
-  const { unitGroups, staffPrimaryUnit } = groupStaffByUnit(assignments, staffList);
+  const { unitGroups } = groupStaffByUnit(assignments, staffList);
   
   // Sort units by category
   const sortedUnits = Array.from(unitGroups.keys()).sort((a, b) => {
@@ -635,388 +581,67 @@ async function generateExcelPlanner(scheduleData) {
   // RIDES SECTION
   // ========================================================================
   
-  if (ridesStaff.length > 0) {
-    const ridesSectionRow = worksheet.addRow([]);
-    const ridesSectionCell = ridesSectionRow.getCell(1);
-    ridesSectionCell.value = '🎢 RIDES & ATTRACTIONS';
-    ridesSectionCell.font = { size: 14, bold: true, color: { argb: 'FFFFFFFF' } };  // ✅ Larger font
-    ridesSectionCell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF5B9BD5' }
-    };
-    worksheet.mergeCells(`A${ridesSectionRow.number}:${String.fromCharCode(64 + timeSlots.length + 1)}${ridesSectionRow.number}`);
-    ridesSectionCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    ridesSectionRow.height = 25;  // ✅ Taller header
-    
-    // Header row for rides
-    const ridesHeaderRow = worksheet.addRow(['STAFF NAME', ...timeSlots]);
-    const ridesHeaderRowObj = worksheet.getRow(ridesHeaderRow.number);
-    ridesHeaderRowObj.font = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } };
-    ridesHeaderRowObj.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
-    ridesHeaderRowObj.alignment = { horizontal: 'center', vertical: 'middle' };
-    ridesHeaderRowObj.height = 18;
-    
-    // Rides staff rows
-    for (const staffName of ridesStaff) {
-      const row = [staffName];
-      const staffEndTime = getStaffEndTime(assignments, staffName);
-      
-      for (const timeSlot of timeSlots) {
-        const assignment = findAssignmentAtTime(assignments, staffName, timeSlot);
-        
-        if (assignment) {
-          if (assignment.isBreak) {
-            row.push('BREAK');
-          } else if (assignment.isCovering) {
-            const formattedPos = formatPositionName(assignment.coverageUnit, assignment.coveragePosition, false);
-            row.push(formattedPos);
-          } else {
-            const formattedPos = formatPositionName(assignment.unit, assignment.position, assignment.trainingMatch);
-            row.push(formattedPos);
-          }
-        } else if (staffEndTime && timeSlot === staffEndTime) {
-          row.push(getHomeLabel(staffEndTime));
-        } else {
-          row.push('');
-        }
-      }
-        
-      const staffRow = worksheet.addRow(row);
-      staffRow.height = 35;  // ✅ Consistent row height
-        
-      // Apply cell formatting
-      for (let col = 2; col <= timeSlots.length + 1; col++) {
-        const cell = staffRow.getCell(col);
-        const timeSlot = timeSlots[col - 2];
-        const assignment = findAssignmentAtTime(assignments, staffName, timeSlot);
-          
-        if (assignment && assignment.hasBriefing && timeSlot === '09:15') {
-          cell.value = 'LODGE BRIEF';
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD700' } };
-          cell.font = { bold: true, size: 9, color: { argb: 'FF000000' } };
-          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-          continue;
-        }
-          
-        if (cell.value === 'BREAK') {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
-          cell.font = { bold: true, size: 9, color: { argb: 'FF000000' } };
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FF000000' } },
-            bottom: { style: 'thin', color: { argb: 'FF000000' } },
-            left: { style: 'thin', color: { argb: 'FF000000' } },
-            right: { style: 'thin', color: { argb: 'FF000000' } }
-          };
-        } else if (cell.value && cell.value.toString().startsWith('Home @')) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
-          cell.font = { italic: true, size: 9, color: { argb: 'FF595959' } };
-        } else if (assignment && (assignment.unit || assignment.isCovering)) {
-          const displayUnit = assignment.isCovering ? assignment.coverageUnit : assignment.unit;
-          const isExplorerUnit = explorerUnits && explorerUnits.includes(displayUnit);
-          
-          if (isExplorerUnit && explorerColor) {
-            const explorerArgb = explorerColor.replace('#', 'FF');
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: explorerArgb } };
-            cell.font = { bold: true, size: 8, color: { argb: 'FF000000' } };
-          } else {
-            const rideColor = getRideColor(displayUnit);
-            if (rideColor) {
-              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rideColor } };
-              cell.font = { bold: true, size: 8, color: { argb: 'FF000000' } };
-            }
-          }
-        }
-          
-        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-        cell.border = {
-          top: { style: 'thin' },
-          left: { style: 'thin' },
-          bottom: { style: 'thin' },
-          right: { style: 'thin' }
-        };
-      }
-        
-      staffRow.getCell(1).font = { bold: true, size: 10 };
-      staffRow.getCell(1).border = {
-        top: { style: 'thin' },
-        left: { style: 'thin' },
-        bottom: { style: 'thin' },
-        right: { style: 'thin' }
-      };
-      
-      // ✅ Apply Senior Host color highlighting
-      if (isSeniorHost(staffName, seniorHostStaff)) {
-        staffRow.getCell(1).fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: SENIOR_HOST_COLOR }
-        };
-      }
-      staffRow.height = 35;  // ✅ Re-assert height AFTER wrapText formatting
-    }
-    
-    // Spacer between sections
-    worksheet.addRow([]);
-    worksheet.lastRow.height = 10;
-  }
+  renderStaffTableSection({
+    worksheet,
+    title: '🎢 RIDES & ATTRACTIONS',
+    titleColor: 'FF5B9BD5',
+    staffNames: ridesStaff,
+    timeSlots,
+    rowHeight: 35,
+    assignments,
+    explorerUnits,
+    explorerColor,
+    seniorHostStaff,
+    useExplorerHighlight: true,
+    breakBorderWithBlack: true,
+    postSpacerHeight: 10
+  });
   
   // ========================================================================
   // RETAIL / ADMISSIONS / GHI SECTION
   // ========================================================================
   
-  if (retailStaff.length > 0) {
-    const retailSectionRow = worksheet.addRow([]);
-    const retailSectionCell = retailSectionRow.getCell(1);
-    retailSectionCell.value = '🛍️ RETAIL / ADMISSIONS';
-    retailSectionCell.font = { size: 14, bold: true, color: { argb: 'FFFFFFFF' } };  // ✅ Larger font
-    retailSectionCell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF70AD47' }
-    };
-    worksheet.mergeCells(`A${retailSectionRow.number}:${String.fromCharCode(64 + timeSlots.length + 1)}${retailSectionRow.number}`);
-    retailSectionCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    retailSectionRow.height = 25;  // ✅ Taller header
-    
-    // Header row for retail
-    const retailHeaderRow = worksheet.addRow(['STAFF NAME', ...timeSlots]);
-    const retailHeaderRowObj = worksheet.getRow(retailHeaderRow.number);
-    retailHeaderRowObj.font = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } };
-    retailHeaderRowObj.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
-    retailHeaderRowObj.alignment = { horizontal: 'center', vertical: 'middle' };
-    retailHeaderRowObj.height = 18;
-    
-    // Retail staff rows
-    for (const staffName of retailStaff) {
-      const row = [staffName];
-      const staffEndTime = getStaffEndTime(assignments, staffName);
-      
-      for (const timeSlot of timeSlots) {
-        const assignment = findAssignmentAtTime(assignments, staffName, timeSlot);
-        
-        if (assignment) {
-          if (assignment.isBreak) {
-            row.push('BREAK');
-          } else if (assignment.isCovering) {
-            const formattedPos = formatPositionName(assignment.coverageUnit, assignment.coveragePosition, false);
-            row.push(formattedPos);
-          } else {
-            const formattedPos = formatPositionName(assignment.unit, assignment.position, assignment.trainingMatch);
-            row.push(formattedPos);
-          }
-        } else if (staffEndTime && timeSlot === staffEndTime) {
-          row.push(getHomeLabel(staffEndTime));
-        } else {
-          row.push('');
-        }
-      }
-        
-      const staffRow = worksheet.addRow(row);
-      staffRow.height = 25;  // ✅ Consistent row height
-        
-      // Apply cell formatting
-      for (let col = 2; col <= timeSlots.length + 1; col++) {
-        const cell = staffRow.getCell(col);
-        const timeSlot = timeSlots[col - 2];
-        const assignment = findAssignmentAtTime(assignments, staffName, timeSlot);
-          
-        if (assignment && assignment.hasBriefing && timeSlot === '09:15') {
-          cell.value = 'MAIN STAGE BRIEF';
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD700' } };
-          cell.font = { bold: true, size: 9, color: { argb: 'FF000000' } };
-          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-          continue;
-        }
-          
-        if (cell.value === 'BREAK') {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
-          cell.font = { bold: true, size: 9, color: { argb: 'FF000000' } };
-          cell.border = {
-            top: { style: 'thin', color: { argb: 'FF000000' } },
-            bottom: { style: 'thin', color: { argb: 'FF000000' } },
-            left: { style: 'thin', color: { argb: 'FF000000' } },
-            right: { style: 'thin', color: { argb: 'FF000000' } }
-          };
-        } else if (cell.value && cell.value.toString().startsWith('Home @')) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
-          cell.font = { italic: true, size: 9, color: { argb: 'FF595959' } };
-        } else if (assignment && (assignment.unit || assignment.isCovering)) {
-          const displayUnit = assignment.isCovering ? assignment.coverageUnit : assignment.unit;
-          const isExplorerUnit = explorerUnits && explorerUnits.includes(displayUnit);
-          
-          if (isExplorerUnit && explorerColor) {
-            const explorerArgb = explorerColor.replace('#', 'FF');
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: explorerArgb } };
-            cell.font = { bold: true, size: 8, color: { argb: 'FF000000' } };
-          } else {
-            const rideColor = getRideColor(displayUnit);
-            if (rideColor) {
-              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rideColor } };
-              cell.font = { bold: true, size: 8, color: { argb: 'FF000000' } };
-            }
-          }
-        }
-          
-        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-        cell.border = {
-          top: { style: 'thin' },
-          left: { style: 'thin' },
-          bottom: { style: 'thin' },
-          right: { style: 'thin' }
-        };
-      }
-        
-      staffRow.getCell(1).font = { bold: true, size: 10 };
-      staffRow.getCell(1).border = {
-        top: { style: 'thin' },
-        left: { style: 'thin' },
-        bottom: { style: 'thin' },
-        right: { style: 'thin' }
-      };
-      
-      // ✅ Apply Senior Host color highlighting
-      if (isSeniorHost(staffName, seniorHostStaff)) {
-        staffRow.getCell(1).fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: SENIOR_HOST_COLOR }
-        };
-      }
-      staffRow.height = 25;  // ✅ Re-assert height AFTER wrapText formatting
-    }
-  }
+  renderStaffTableSection({
+    worksheet,
+    title: '🛍️ RETAIL / ADMISSIONS',
+    titleColor: 'FF70AD47',
+    staffNames: retailStaff,
+    timeSlots,
+    rowHeight: 25,
+    assignments,
+    explorerUnits,
+    explorerColor,
+    seniorHostStaff,
+    useExplorerHighlight: true,
+    breakBorderWithBlack: true
+  });
   
   
   // ========================================================================
   // UNASSIGNED STAFF SECTION
   // ========================================================================
   
-  const unassignedStaff = staffList.filter(s => s.unassigned);
-  
-  if (unassignedStaff.length > 0) {
-    const unassignedHeaderRow = worksheet.addRow([]);
-    const unassignedHeader = unassignedHeaderRow.getCell(1);
-    unassignedHeader.value = '❌ UNASSIGNED STAFF';
-    unassignedHeader.font = { size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
-    unassignedHeader.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFFF0000' }
-    };
-    worksheet.mergeCells(`A${unassignedHeaderRow.number}:G${unassignedHeaderRow.number}`);
-    unassignedHeader.alignment = { horizontal: 'center', vertical: 'middle' };
-    unassignedHeaderRow.height = 18;
-    
-    for (const staff of unassignedStaff) {
-      const row = [staff.name, `NOT ASSIGNED: ${staff.reason}`];
-      const staffRow = worksheet.addRow(row);
-      staffRow.height = 25;  // ✅ Consistent row height
-      
-      staffRow.getCell(1).font = { bold: true, color: { argb: 'FFFF0000' } };
-      staffRow.getCell(2).font = { italic: true, color: { argb: 'FFFF0000' } };
-      
-      staffRow.getCell(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFFF6666' }
-      };
-      staffRow.getCell(2).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFFF6666' }
-      };
-      
-      worksheet.mergeCells(`B${staffRow.number}:G${staffRow.number}`);
-    }
-  }
+  renderUnassignedSection(worksheet, staffList, TOP_SECTION_END_COL);
   
   // ========================================================================
   // CAR PARKS & GHI SECTION
   // ========================================================================
 
-  if (carParksGhiStaff.length > 0) {
-    const cpSpacer = worksheet.addRow([]);
-    cpSpacer.height = 12;
-    worksheet.mergeCells(`A${cpSpacer.number}:${String.fromCharCode(64 + timeSlots.length + 1)}${cpSpacer.number}`);
-
-    const cpSectionRow = worksheet.addRow([]);
-    const cpSectionCell = cpSectionRow.getCell(1);
-    cpSectionCell.value = '🅿️ CAR PARKS & GHI';
-    cpSectionCell.font = { size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
-    cpSectionCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF70AD47' } };
-    worksheet.mergeCells(`A${cpSectionRow.number}:${String.fromCharCode(64 + timeSlots.length + 1)}${cpSectionRow.number}`);
-    cpSectionCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    cpSectionRow.height = 25;
-
-    const cpHeaderRow = worksheet.addRow(['STAFF NAME', ...timeSlots]);
-    const cpHeaderRowObj = worksheet.getRow(cpHeaderRow.number);
-    cpHeaderRowObj.font = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } };
-    cpHeaderRowObj.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
-    cpHeaderRowObj.alignment = { horizontal: 'center', vertical: 'middle' };
-    cpHeaderRowObj.height = 18;
-
-    for (const staffName of carParksGhiStaff) {
-      const row = [staffName];
-      const staffEndTime = getStaffEndTime(assignments, staffName);
-
-      for (const timeSlot of timeSlots) {
-        const assignment = findAssignmentAtTime(assignments, staffName, timeSlot);
-        if (assignment) {
-          if (assignment.isBreak) row.push('BREAK');
-          else if (assignment.isCovering) row.push(formatPositionName(assignment.coverageUnit, assignment.coveragePosition, false));
-          else row.push(formatPositionName(assignment.unit, assignment.position, assignment.trainingMatch));
-        } else if (staffEndTime && timeSlot === staffEndTime) {
-          row.push(getHomeLabel(staffEndTime));
-        } else {
-          row.push('');
-        }
-      }
-
-      const staffRow = worksheet.addRow(row);
-      staffRow.height = 25;
-
-      for (let col = 2; col <= timeSlots.length + 1; col++) {
-        const cell = staffRow.getCell(col);
-        const timeSlot = timeSlots[col - 2];
-        const assignment = findAssignmentAtTime(assignments, staffName, timeSlot);
-
-        if (assignment && assignment.hasBriefing && timeSlot === '09:15') {
-          cell.value = 'MAIN STAGE BRIEF';
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD700' } };
-          cell.font = { bold: true, size: 9, color: { argb: 'FF000000' } };
-          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-          continue;
-        }
-
-        if (cell.value === 'BREAK') {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
-          cell.font = { bold: true, size: 9, color: { argb: 'FF000000' } };
-          cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
-        } else if (cell.value && cell.value.toString().startsWith('Home @')) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
-          cell.font = { italic: true, size: 9, color: { argb: 'FF595959' } };
-        } else if (assignment && (assignment.unit || assignment.isCovering)) {
-          const displayUnit = assignment.isCovering ? assignment.coverageUnit : assignment.unit;
-          const rideColor = getRideColor(displayUnit);
-          if (rideColor) {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rideColor } };
-            cell.font = { bold: true, size: 8, color: { argb: 'FF000000' } };
-          }
-        }
-
-        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-      }
-
-      staffRow.getCell(1).font = { bold: true, size: 10 };
-      staffRow.getCell(1).border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-      if (isSeniorHost(staffName, seniorHostStaff)) {
-        staffRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: SENIOR_HOST_COLOR } };
-      }
-      staffRow.height = 25;
-    }
-  }
+  renderStaffTableSection({
+    worksheet,
+    title: '🅿️ CAR PARKS & GHI',
+    titleColor: 'FF70AD47',
+    staffNames: carParksGhiStaff,
+    timeSlots,
+    rowHeight: 25,
+    assignments,
+    explorerUnits,
+    explorerColor,
+    seniorHostStaff,
+    useExplorerHighlight: false,
+    breakBorderWithBlack: false,
+    preSpacerHeight: 12
+  });
 
   // ========================================================================
   // FORMATTING
@@ -1031,8 +656,7 @@ async function generateExcelPlanner(scheduleData) {
   // LEGEND
   // ========================================================================
   
-  worksheet.addRow([]);
-  worksheet.lastRow.height = 6;  // ✅ Thin spacer row
+  addSpacerRow(worksheet, 6); // ✅ Thin spacer row
   const legendRow = worksheet.addRow(['']);
   legendRow.getCell(1).value = '🎨 Planner separated into RIDES and RETAIL sections | Senior Hosts highlighted in light blue | Colors match Skills Matrix | BREAK = White | BRIEFING = Gold (09:15)';
   legendRow.getCell(1).font = { italic: true, size: 9 };
