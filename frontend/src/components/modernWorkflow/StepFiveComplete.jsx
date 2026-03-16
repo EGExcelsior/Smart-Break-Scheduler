@@ -1,6 +1,9 @@
 import ActionButtons from './ActionButtons';
 
 const StepFiveComplete = ({ assignmentResult, selectedUnits, date, dayCode, onResetWorkflow }) => {
+  const alertSummary = assignmentResult?.alerts;
+  const hasAbsenceWithShiftAlerts = (alertSummary?.absenceWithShiftCount || 0) > 0;
+
   return (
     <div className="step-content">
       <div className="success-message">
@@ -14,6 +17,25 @@ const StepFiveComplete = ({ assignmentResult, selectedUnits, date, dayCode, onRe
           {selectedUnits.length} units were staffed on {date} (Day Code {dayCode})
         </p>
       </div>
+
+      {hasAbsenceWithShiftAlerts && (
+        <div className="warning-message">
+          <span>⚠️</span>
+          <div>
+            <p>
+              Review needed: {alertSummary.absenceWithShiftCount} staff member(s) had an Absence Code but still appeared with a shift.
+            </p>
+            <ul className="warning-list">
+              {alertSummary.absenceWithShift.map((item) => (
+                <li key={`${item.name}-${item.startTime}-${item.endTime}`}>
+                  {item.name} ({item.startTime}-{item.endTime}) - {item.plannedFunction} - Code {item.absenceCode}
+                  {item.absenceReason ? ` (${item.absenceReason})` : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       <ActionButtons primaryLabel="Create Another Schedule" primaryIcon="🔄" onPrimary={onResetWorkflow} />
     </div>

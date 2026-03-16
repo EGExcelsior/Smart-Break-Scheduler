@@ -366,6 +366,7 @@ async function generateExcelPlanner(scheduleData) {
     assignments,
     staffList,
     statistics,
+    alerts,
     competencyWarnings,
     parkWideUnits,
     explorerColor,   // ✅ Color for Explorer units
@@ -480,6 +481,57 @@ async function generateExcelPlanner(scheduleData) {
     worksheet.addRow([]);
     worksheet.lastRow.height = 6;  // ✅ Thin spacer row
   }
+
+  // ========================================================================
+  // ISSUES SECTION (e.g. Absence code with scheduled shifts)
+  // ========================================================================
+
+  const absenceWithShiftIssues = alerts?.absenceWithShift || [];
+  const issuesHeaderRow = worksheet.addRow([]);
+  const issuesHeader = issuesHeaderRow.getCell(1);
+  const hasIssues = absenceWithShiftIssues.length > 0;
+
+  issuesHeader.value = hasIssues
+    ? `⚠️ ISSUES TO REVIEW (${absenceWithShiftIssues.length})`
+    : '✅ ISSUES TO REVIEW (0)';
+  issuesHeader.font = { size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+  issuesHeader.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: hasIssues ? 'FFF4B183' : 'FF70AD47' }
+  };
+  worksheet.mergeCells(`A${issuesHeaderRow.number}:G${issuesHeaderRow.number}`);
+  issuesHeader.alignment = { horizontal: 'center', vertical: 'middle' };
+  issuesHeaderRow.height = 20;
+
+  if (hasIssues) {
+    for (const issue of absenceWithShiftIssues) {
+      const issueRow = worksheet.addRow([
+        `${issue.name} (${issue.startTime} - ${issue.endTime}) | ${issue.plannedFunction} | Absence Code: ${issue.absenceCode}${issue.absenceReason ? ` - ${issue.absenceReason}` : ''}`
+      ]);
+
+      issueRow.getCell(1).font = { size: 10, bold: true, color: { argb: 'FF7F6000' } };
+      issueRow.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFF2CC' }
+      };
+
+      worksheet.mergeCells(`A${issueRow.number}:G${issueRow.number}`);
+    }
+  } else {
+    const noIssuesRow = worksheet.addRow(['No issues detected from TimeGrip absence checks.']);
+    noIssuesRow.getCell(1).font = { size: 10, bold: true, color: { argb: 'FF1B5E20' } };
+    noIssuesRow.getCell(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE2F0D9' }
+    };
+    worksheet.mergeCells(`A${noIssuesRow.number}:G${noIssuesRow.number}`);
+  }
+
+  worksheet.addRow([]);
+  worksheet.lastRow.height = 6;
   
   // ========================================================================
   // TIME SLOTS

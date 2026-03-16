@@ -863,6 +863,7 @@ app.post('/api/parse-and-analyze', upload.fields([
       statistics,
       staffData: skillsData,
       timegripData,
+      alerts: timegripData.alerts || null,
       staffingRequirements,
       zone,
       dayCode
@@ -3466,6 +3467,26 @@ for (const req of retailAdmissionsUnits) {
   }
 }
 
+const STEP2_UNIT_PRIORITY = {
+  Sealife: 1,
+  'Sweet Shop': 2,
+  'Adventures Point Gift Shop': 3,
+  'Explorer Supplies': 4,
+  "Ben & Jerry's": 5,
+  "Ben & Jerry's Kiosk": 6,
+  'Lodge Entrance': 20,
+  'Explorer Entrance': 21,
+  'Schools Entrance': 22,
+  'Azteca Entrance': 23
+};
+
+fullShiftAssignments.sort((a, b) => {
+  const priorityA = STEP2_UNIT_PRIORITY[a.unit] || 99;
+  const priorityB = STEP2_UNIT_PRIORITY[b.unit] || 99;
+  if (priorityA !== priorityB) return priorityA - priorityB;
+  return a.unit.localeCompare(b.unit);
+});
+
 // Units that require specific skills — only trained staff should be assigned
 const SKILL_GATED_STEP2 = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sealife', 'Sweet Shop']);
 
@@ -3535,9 +3556,17 @@ for (const reserveUnit of RETAIL_RESERVE_UNITS) {
 for (const assignment of fullShiftAssignments) {
   for (let i = 0; i < assignment.count; i++) {
     // ✅ FIX: For skill-gated units, only assign trained staff
-    const availableHost = SKILL_GATED_STEP2.has(assignment.req.unitName)
+    let availableHost = SKILL_GATED_STEP2.has(assignment.req.unitName)
       ? staffByType.regularHostsFullShift.find(s => !assignedStaff.has(s.name) && hasSkillForUnit(s.name, assignment.req.unitName, skillsData))
       : staffByType.regularHostsFullShift.find(s => !assignedStaff.has(s.name));
+
+    // Keep strict skill gating for B&J units, but allow baseline coverage fallback for Sweet/Sealife.
+    if (!availableHost && (assignment.req.unitName === 'Sweet Shop' || assignment.req.unitName === 'Sealife')) {
+      availableHost = staffByType.regularHostsFullShift.find(s => !assignedStaff.has(s.name));
+      if (availableHost) {
+        console.log(`   ⚠️  ${assignment.req.unitName}: no trained host available, using fallback ${availableHost.name} for coverage`);
+      }
+    }
     
     if (availableHost) {
       assignments.push({
@@ -3629,6 +3658,11 @@ if (suppliesReq) {
 // PRE-STEP 4: APGS min 3
 const apgsReqMin = staffingRequirements.find(r => r.unitName === 'Adventures Point Gift Shop' && r.position.includes('Host') && !r.position.includes('Senior'));
 if (apgsReqMin) {
+  const sweetFilled = assignments.filter(a => a.unit === 'Sweet Shop' && !a.isBreak).length;
+  const sealifeFilled = assignments.filter(a => a.unit === 'Sealife' && !a.isBreak).length;
+  if (sweetFilled === 0 || sealifeFilled === 0) {
+    console.log(`   ⚠️  APGS min-pass skipped: preserve hosts for Sweet/Sealife coverage first (Sweet=${sweetFilled}, Sealife=${sealifeFilled})`);
+  } else {
   const aKey = `${apgsReqMin.unitName}-${apgsReqMin.position}`;
   const aFilled = assignments.filter(a => a.unit === 'Adventures Point Gift Shop' && !a.isBreak).length;
   if (aFilled < 3) {
@@ -3638,6 +3672,7 @@ if (apgsReqMin) {
       assignedStaff.add(host.name); filledPositions.set(aKey, (filledPositions.get(aKey) || 0) + 1);
       console.log(`   🛍️  ${host.name} → APGS (min 3)`); assigned++;
     }
+  }
   }
 }
 
@@ -4882,6 +4917,7 @@ const scheduleData = {
   date: date,
   assignments: assignments,
   staffList: sortedStaffList,
+  alerts: timegripData.alerts || null,
   statistics: {
     filledCount: assigned,
     totalPositions: totalNeeded,
@@ -4906,6 +4942,7 @@ const scheduleData = {
       total: totalNeeded,
       fillRate: totalNeeded > 0 ? Math.round((assigned / totalNeeded) * 100) : 0,
       assignments,
+      alerts: timegripData.alerts || null,
       excelFile: base64,
       filename: filename
     });

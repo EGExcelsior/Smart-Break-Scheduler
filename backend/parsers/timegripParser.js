@@ -6,6 +6,13 @@
 
 const fs = require('fs').promises;
 
+function createEmptyAlerts() {
+  return {
+    absenceWithShift: [],
+    absentStaffSkipped: []
+  };
+}
+
 async function parseTimegripCsv(filePath, targetTeam, targetDate = null) {
   const content = await fs.readFile(filePath, 'utf-8');
   const lines = content.split('\n');
@@ -68,6 +75,7 @@ function parseTabularCsv(lines, searchDate) {
   
   // Initialize result structures
   const workingStaff = [];
+  const alerts = createEmptyAlerts();
   const staffByFunction = {
     SPECIFIC: [],
     BREAK_COVER: [],
@@ -97,6 +105,21 @@ function parseTabularCsv(lines, searchDate) {
     // ✅ NEW: Filter out staff with absences (Holiday, Sick, etc.)
     // Absence codes: 0 = Working, 32 = Holiday, others = various absences
     if (absenceCode && absenceCode !== '0' && absenceCode.trim() !== '') {
+      const alertRecord = {
+        name,
+        date,
+        startTime,
+        endTime,
+        plannedFunction: plannedFunction ? plannedFunction.trim() : '',
+        absenceCode: absenceCode.trim(),
+        absenceReason: absenceReason ? absenceReason.trim() : ''
+      };
+
+      alerts.absentStaffSkipped.push(alertRecord);
+      if (alertRecord.startTime && alertRecord.endTime && alertRecord.plannedFunction) {
+        alerts.absenceWithShift.push(alertRecord);
+      }
+
       console.log(`  ⚠️  ${name}: ABSENT (Code ${absenceCode}${absenceReason ? ` - ${absenceReason}` : ''}) - SKIPPED`);
       continue;
     }
@@ -140,16 +163,31 @@ function parseTabularCsv(lines, searchDate) {
     
     console.log(`  ✅ ${name}: ${startTime}-${endTime} → ${staffCategory}: ${plannedFunction}`);
   }
+
+  if (alerts.absenceWithShift.length > 0) {
+    console.log(`\n🚨 TimeGrip alert: ${alerts.absenceWithShift.length} staff have an absence code but also a scheduled shift:`);
+    alerts.absenceWithShift.forEach((item) => {
+      console.log(
+        `   - ${item.name} (${item.startTime}-${item.endTime}, ${item.plannedFunction}, code ${item.absenceCode}${item.absenceReason ? ` - ${item.absenceReason}` : ''})`
+      );
+    });
+  }
   
   return {
     workingStaff,
     totalStaff: workingStaff.length,
-    staffByFunction  // ✅ CRUCIAL: Structured data for server.js
+    staffByFunction,  // ✅ CRUCIAL: Structured data for server.js
+    alerts: {
+      ...alerts,
+      absenceWithShiftCount: alerts.absenceWithShift.length,
+      absentStaffSkippedCount: alerts.absentStaffSkipped.length
+    }
   };
 }
 
 function parseWorkplanFormat(lines, searchDate) {
   const workingStaff = [];
+  const alerts = createEmptyAlerts();
   const staffByFunction = {
     SPECIFIC: [],
     BREAK_COVER: [],
@@ -229,7 +267,12 @@ function parseWorkplanFormat(lines, searchDate) {
   return {
     workingStaff,
     totalStaff: workingStaff.length,
-    staffByFunction  // ✅ CRUCIAL: Structured data for server.js
+    staffByFunction,  // ✅ CRUCIAL: Structured data for server.js
+    alerts: {
+      ...alerts,
+      absenceWithShiftCount: 0,
+      absentStaffSkippedCount: 0
+    }
   };
 }
 

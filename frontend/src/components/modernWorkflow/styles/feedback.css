@@ -70,6 +70,17 @@
   margin: 0;
 }
 
+.warning-list {
+  margin: 8px 0 0 20px;
+  padding: 0;
+  color: #e65100;
+  font-size: 14px;
+}
+
+.warning-list li {
+  margin-bottom: 4px;
+}
+
 .success-message {
   text-align: center;
   padding: 40px;

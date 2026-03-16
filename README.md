@@ -1,4 +1,4 @@
-# Break Scheduler V6.5
+# Break Scheduler
 
 **Automated Staff Assignment & Excel Planner Generation**
 
@@ -6,12 +6,13 @@ Modern, efficient break scheduler with horizontal time-based Excel output and be
 
 ---
 
-## 🎯 What's New in V6.5
+## 🎯 Current Highlights
 
 ✅ **Excel Planner Output** - Horizontal time-based format like old LIONS/TIGERS/ADMISSIONS  
 ✅ **Modern UI** - Drag & drop uploads, visual feedback, progress tracking  
-✅ **Hard-Coded Day Codes** - No more day code sheet upload (80% faster!)  
-✅ **Only 3 Files** - Skills Matrix, TimeGrip CSV, Allocation Template  
+✅ **Zone-Driven Day Codes** - Day codes and requirements load from the selected zone workbook  
+✅ **Only 2 Files** - Skills Matrix + TimeGrip CSV  
+✅ **Unit Status Selector** - Open/closed defaults loaded from zone files with manual overrides  
 ✅ **Professional Formatting** - Color-coded breaks, competency warnings  
 ✅ **Responsive Design** - Works on desktop, tablet, mobile  
 
@@ -66,7 +67,6 @@ Drag & drop or click to upload:
 
 1. **Skills Matrix** (.xlsx) - Shows Green (1) training levels
 2. **TimeGrip CSV** (.csv) - Staff working today (with "Function name on bars" enabled)
-3. **Allocation Template** (.xlsx) - Position requirements
 
 ### Step 2: Configure
 
@@ -78,22 +78,23 @@ Drag & drop or click to upload:
 
 Click "Parse & Analyze Files" to:
 - Read all uploaded files
-- Load day code requirements (hard-coded, instant!)
+- Load day code requirements from the selected zone workbook
 - Calculate staffing statistics
 
-### Step 4: Auto-Assign
+### Step 4: Select Units
+
+Click "Select Units to Staff" to:
+- Load unit defaults from Closed Days data in the zone workbook
+- Toggle individual units open/closed
+- Use quick actions (reset defaults, all open, all closed)
+
+### Step 5: Auto-Assign
 
 Click "Auto-Assign Staff" to:
 - Match staff with Green training to positions
 - Enforce 3-hour competency limits
 - Flag any violations
-
-### Step 5: Generate Excel Planner
-
-Click "Generate Excel Planner" to:
-- Create horizontal time-based Excel file
-- Download immediately
-- Print or email to staff!
+- Generate and download the Excel planner automatically
 
 ---
 
@@ -122,48 +123,61 @@ Click "Generate Excel Planner" to:
 
 ---
 
-## 🔧 Day Codes (Hard-Coded)
+## 🔧 Day Codes
 
-| Code | Name | Guests | Close | Positions (Phantom) |
-|------|------|--------|-------|---------------------|
-| A | Lodge 4PM | <3,000 | 4pm | 30 |
-| B | Lodge 5PM | <3,000 | 5pm | 29 |
-| E | Explorer 5PM | 4,000-8,000 | 5pm | 33 |
-| I | Explorer + 7PM | 8,000-10,000 | 7pm | **37** (Peak) |
-| K | WT Off-Peak | <1,750 | 3pm | 7 |
+Day codes are loaded dynamically from the selected zone workbook.
 
-**Total:** 14 day codes (A-N) for each team
+| Code | Example Name | Typical Pattern |
+|------|--------------|-----------------|
+| A | Lodge 4PM | Lodge-focused quieter day |
+| B | Lodge 5PM | Lodge + schools pattern |
+| E | Explorer 5PM | Explorer-focused day |
+| I | Explorer + 7PM | Higher-demand Explorer day |
+| K | WT Off-Peak | Short/quiet operating day |
+
+Final staffing requirements can differ per zone and per selected unit set.
 
 ---
 
 ## 📁 File Structure
 
 ```
-break-scheduler-v6.5/
+break-scheduler/
 ├── backend/
 │   ├── data/
-│   │   └── dayCodeRequirements.js    Hard-coded day codes
+│   │   └── dayCodeRequirements.js
 │   ├── generators/
-│   │   └── excelPlannerGenerator.js  Excel output
+│   │   └── excelPlannerGenerator.js
 │   ├── parsers/
 │   │   ├── skillsMatrixParser.js
 │   │   ├── timegripParser.js
-│   │   └── allocationParser.js
-│   ├── server.js                     Main server
+│   │   └── zoneFileParser.js
+│   ├── config/
+│   │   ├── constants.js
+│   │   └── zoneConfig.js
+│   ├── server.js
 │   └── package.json
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── ModernWorkflow.jsx    Main UI component
-│   │   │   └── ModernWorkflow.css    Styling
+│   │   │   ├── ModernWorkflow.jsx
+│   │   │   ├── ModernWorkflow.css
+│   │   │   └── modernWorkflow/
+│   │   │      ├── useModernWorkflow.js
+│   │   │      ├── api.js
+│   │   │      ├── StepOneUploadConfig.jsx
+│   │   │      ├── StepTwoReviewAnalysis.jsx
+│   │   │      ├── StepThreeSelectUnits.jsx
+│   │   │      ├── StepFourReviewAssignments.jsx
+│   │   │      ├── StepFiveComplete.jsx
+│   │   │      └── styles/
 │   │   ├── App.js
-│   │   ├── App.css
 │   │   ├── index.js
-│   │   └── index.css
+│   │   └── App.css
 │   ├── public/
 │   │   └── index.html
 │   └── package.json
-└── README.md                          This file
+└── README.md
 ```
 
 ---
@@ -176,7 +190,7 @@ break-scheduler-v6.5/
 - One-click remove
 
 ### Visual Progress
-- 4-step progress bar
+- 5-step progress bar
 - Current step highlighted
 - Completed steps marked green
 
@@ -194,12 +208,83 @@ break-scheduler-v6.5/
 
 ## ⚡ Performance
 
-| Metric | V5.0 | V6.5 | Improvement |
+| Metric | Legacy | Current | Improvement |
 |--------|------|------|-------------|
-| Files to Upload | 4 | 3 | -25% |
-| Parse Time | 3-5 sec | <1 sec | 80% faster |
+| Files to Upload | 4 | 2 | -50% |
+| Parse Time | 3-5 sec | faster (zone/day-code preloaded) | improved |
 | Output Format | Word | Excel | Familiar! |
 | Visual Flow | None | Clear | Game changer |
+
+---
+
+## 🧠 Staffing And Break Logic (Current)
+
+This section describes the current assignment and break behavior used by the scheduler.
+
+### Staffing model
+
+1. Assignment is multi-pass, not single-pass.
+2. Skill-gated retail units are protected first (especially Sealife and Sweet Shop), then wider host placement continues.
+3. Entrances can be intentionally overstaffed in the morning, then rebalanced into retail in the afternoon.
+4. Day code and open entrances drive target behavior; targets are dynamic, not a fixed global table.
+
+### Dynamic overflow targets
+
+Overflow targets vary based on which entrances are open for that day code.
+
+1. Explorer + Schools open:
+Explorer 4, Lodge 3, Schools 2, APGS 2, Sweet 2, Sealife 1, Supplies 1, B&J 2, B&J Kiosk 1, Lorikeets 1
+2. Explorer only:
+Explorer 4, Lodge 2, APGS 2, Sweet 2, Sealife 1, Supplies 1, B&J 2, B&J Kiosk 1, Lorikeets 1
+3. Schools only:
+Lodge 4, Schools 2, APGS 2, Sweet 2, Sealife 1, Supplies 1, B&J 2, B&J Kiosk 1, Lorikeets 1
+4. Lodge-only quiet days:
+Lodge 1, APGS 2, Sweet 2, Sealife 1, Lorikeets 1
+
+Notes:
+
+1. Azteca is treated as morning-only pre-pass support and is not part of normal overflow targeting.
+2. APGS minimum fill is guarded so it does not steal hosts when Sweet Shop or Sealife have zero coverage.
+
+### Afternoon rebalance
+
+After lunch breaks, entrance overflow is moved to retail while preserving entrance minimums.
+
+1. Explorer baseline days keep higher Explorer coverage.
+2. Schools baseline days keep higher Schools/Lodge coverage.
+3. Lodge-only days keep lower minimum entrance coverage.
+4. Retail destination priority favors B&J when understaffed, then Sweet Shop, APGS, Sealife, Supplies, and other retail.
+
+### Break slot logic
+
+Core non-rides slots:
+
+1. 11:00
+2. 12:00
+3. 13:00
+4. 14:00
+5. 15:00
+
+Preferred break timing by shift pattern:
+
+1. Early closers (home by 15:00): earliest break preference (11:00)
+2. Senior Hosts: 12:00 or later (never 11:00)
+3. Early starters (before 09:00): 11:00 preference
+4. Mid starters (09:00 to 10:45): 12:00 preference, with cascade
+5. Late starters (11:00+): 14:00 preference, cascade to 15:00 if needed
+
+### 2-person unit staggering
+
+Two-person units are handled with dedicated stagger logic to avoid simultaneous breaks.
+
+1. If one person is already breaking in a slot, the second is pushed to the next safe slot.
+2. This is specifically designed to avoid both people in units like Sealife and Explorer Supplies breaking together.
+
+### Practical implications
+
+1. You may see high entrance staffing early in day.
+2. Reassignment to retail is expected after lunch windows.
+3. If trained staff are unavailable for a skill-gated unit, controlled fallback can be used for continuity (except strict B&J skill rules).
 
 ---
 
@@ -298,10 +383,11 @@ background: linear-gradient(135deg, #YOUR_COLOR 0%, #YOUR_COLOR 100%);
 
 ## ✅ Testing Checklist
 
-- [ ] Upload all 3 files successfully
+- [ ] Upload both required files successfully
 - [ ] Day codes populate for selected team
 - [ ] Parse & analyze completes
 - [ ] Statistics display correctly
+- [ ] Unit status selector loads and toggles correctly
 - [ ] Auto-assign generates assignments
 - [ ] Competency warnings show if applicable
 - [ ] Excel file downloads
