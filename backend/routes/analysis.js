@@ -1,16 +1,15 @@
 const express = require('express');
-const multer = require('multer');
 const fs = require('fs');
 
 const { parseSkillsMatrix } = require('../parsers/skillsMatrixParser');
 const { parseTimegripCsv } = require('../parsers/timegripParser');
 const { parseZoneFile } = require('../parsers/zoneFileParser');
 const { ZONE_FILES } = require('../config/zoneFiles');
+const { upload } = require('../middleware/upload');
 
 const VERBOSE_API_LOGS = process.env.VERBOSE_API_LOGS === 'true';
 
 const router = express.Router();
-const upload = multer({ dest: 'uploads/' });
 
 router.post('/parse-and-analyze', upload.fields([
   { name: 'skillsMatrix', maxCount: 1 },

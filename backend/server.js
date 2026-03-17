@@ -5,6 +5,7 @@ const fs = require('fs');
 const zonesRouter = require('./routes/zones');
 const analysisRouter = require('./routes/analysis');
 const autoAssignRouter = require('./routes/autoAssign');
+const { apiErrorHandler } = require('./middleware/apiErrorHandler');
 
 const app = express();
 
@@ -12,6 +13,7 @@ app.use(express.json());
 app.use('/api', zonesRouter);
 app.use('/api', analysisRouter);
 app.use('/api', autoAssignRouter);
+app.use(apiErrorHandler);
 
 const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'build');
 if (fs.existsSync(frontendBuildPath)) {
