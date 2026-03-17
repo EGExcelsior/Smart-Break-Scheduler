@@ -4,6 +4,7 @@ import AssignmentReview from './schedulerWorkflow/screens/AssignmentReview';
 import UnitSelection from './schedulerWorkflow/screens/UnitSelection';
 import UploadConfiguration from './schedulerWorkflow/screens/UploadConfiguration';
 import WorkflowCompletion from './schedulerWorkflow/screens/WorkflowCompletion';
+import { STEP_LABELS } from './schedulerWorkflow/config/config';
 import ErrorMessage from './schedulerWorkflow/ui/ErrorMessage';
 import ProgressBar from './schedulerWorkflow/ui/ProgressBar';
 import useSchedulerWorkflow from './schedulerWorkflow/hooks/useSchedulerWorkflow';
@@ -66,73 +67,93 @@ const SchedulerWorkflow = () => {
     }
   } = useSchedulerWorkflow();
 
+  const currentStepLabel = STEP_LABELS[currentStep - 1];
+
   return (
     <div className="modern-workflow">
-      <ProgressBar currentStep={currentStep} />
-      <ErrorMessage error={error} onDismiss={() => setError(null)} />
+      <section className="workflow-shell">
+        <div className="workflow-intro">
+          <div>
+            <p className="workflow-kicker">Daily planner</p>
+            <h2 className="workflow-heading">A clearer run sheet for break scheduling</h2>
+            <p className="workflow-summary">
+              Move from raw staffing inputs to a finished planner with fewer visual jumps and better decision context.
+            </p>
+          </div>
 
-      {currentStep === 1 && (
-        <UploadConfiguration
-          files={files}
-          teamName={teamName}
-          zone={zone}
-          date={date}
-          dayCode={dayCode}
-          dayCodeOptions={dayCodeOptions}
-          loading={loading}
-          canProceed={canProceedStep1}
-          onFileSelect={handleFileSelect}
-          onFileDrop={handleFileDrop}
-          onDragOver={handleDragOver}
-          onRemoveFile={removeFile}
-          onTeamChange={handleTeamChange}
-          onDateChange={setDate}
-          onDayCodeChange={setDayCode}
-          onParseAnalyze={handleParseAnalyze}
-        />
-      )}
+          <div className="workflow-status-card">
+            <span className="workflow-status-label">Current stage</span>
+            <strong>{currentStepLabel}</strong>
+            <p>Step {currentStep} of {STEP_LABELS.length}</p>
+          </div>
+        </div>
 
-      {currentStep === 2 && analysisResult && (
-        <AnalysisReview
-          analysisResult={analysisResult}
-          includedAbsentStaff={includedAbsentStaff}
-          loading={loading}
-          canProceed={canProceedStep2}
-          onBack={() => setCurrentStep(1)}
-          onToggleIncludedAbsentStaff={handleToggleIncludedAbsentStaff}
-          onLoadUnits={handleFetchUnitStatus}
-        />
-      )}
+        <ProgressBar currentStep={currentStep} />
+        <ErrorMessage error={error} onDismiss={() => setError(null)} />
 
-      {currentStep === 3 && units && (
-        <UnitSelection
-          units={units}
-          selectedUnits={selectedUnits}
-          loading={loading}
-          canProceed={canProceedStep3}
-          onBack={() => setCurrentStep(2)}
-          onAutoAssign={handleAutoAssign}
-          onUnitToggle={handleUnitToggle}
-          onCategoryToggle={handleCategoryToggle}
-          onResetDefaults={handleResetDefaults}
-          onSetAllOpen={handleSetAllOpen}
-          onSetAllClosed={handleSetAllClosed}
-        />
-      )}
+        {currentStep === 1 && (
+          <UploadConfiguration
+            files={files}
+            teamName={teamName}
+            zone={zone}
+            date={date}
+            dayCode={dayCode}
+            dayCodeOptions={dayCodeOptions}
+            loading={loading}
+            canProceed={canProceedStep1}
+            onFileSelect={handleFileSelect}
+            onFileDrop={handleFileDrop}
+            onDragOver={handleDragOver}
+            onRemoveFile={removeFile}
+            onTeamChange={handleTeamChange}
+            onDateChange={setDate}
+            onDayCodeChange={setDayCode}
+            onParseAnalyze={handleParseAnalyze}
+          />
+        )}
 
-      {currentStep === 4 && assignmentResult && (
-        <AssignmentReview assignmentResult={assignmentResult} onBack={() => setCurrentStep(3)} />
-      )}
+        {currentStep === 2 && analysisResult && (
+          <AnalysisReview
+            analysisResult={analysisResult}
+            includedAbsentStaff={includedAbsentStaff}
+            loading={loading}
+            canProceed={canProceedStep2}
+            onBack={() => setCurrentStep(1)}
+            onToggleIncludedAbsentStaff={handleToggleIncludedAbsentStaff}
+            onLoadUnits={handleFetchUnitStatus}
+          />
+        )}
 
-      {currentStep === 5 && (
-        <WorkflowCompletion
-          assignmentResult={assignmentResult}
-          selectedUnits={selectedUnits}
-          date={date}
-          dayCode={dayCode}
-          onResetWorkflow={resetWorkflow}
-        />
-      )}
+        {currentStep === 3 && units && (
+          <UnitSelection
+            units={units}
+            selectedUnits={selectedUnits}
+            loading={loading}
+            canProceed={canProceedStep3}
+            onBack={() => setCurrentStep(2)}
+            onAutoAssign={handleAutoAssign}
+            onUnitToggle={handleUnitToggle}
+            onCategoryToggle={handleCategoryToggle}
+            onResetDefaults={handleResetDefaults}
+            onSetAllOpen={handleSetAllOpen}
+            onSetAllClosed={handleSetAllClosed}
+          />
+        )}
+
+        {currentStep === 4 && assignmentResult && (
+          <AssignmentReview assignmentResult={assignmentResult} onBack={() => setCurrentStep(3)} />
+        )}
+
+        {currentStep === 5 && (
+          <WorkflowCompletion
+            assignmentResult={assignmentResult}
+            selectedUnits={selectedUnits}
+            date={date}
+            dayCode={dayCode}
+            onResetWorkflow={resetWorkflow}
+          />
+        )}
+      </section>
     </div>
   );
 };

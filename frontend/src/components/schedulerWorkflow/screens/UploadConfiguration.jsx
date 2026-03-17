@@ -22,7 +22,14 @@ const UploadConfiguration = ({
 }) => {
   return (
     <div className="step-content">
-      <h2 className="step-title">Inputs & Setup</h2>
+      <div className="step-header">
+        <div>
+          <p className="step-eyebrow">Preparation</p>
+          <h2 className="step-title">Inputs & Setup</h2>
+          <p className="step-subtitle">Upload source files, confirm planning context, and prepare this run.</p>
+        </div>
+        <div className="step-panel-note">Two files are required. Team sets zone. Day code unlocks after zone loads.</div>
+      </div>
 
       <div className="upload-cards">
         {Object.entries(FILE_CONFIG).map(([fileType, config]) => (
@@ -44,7 +51,7 @@ const UploadConfiguration = ({
       </div>
 
       <div className="config-section">
-        <h3>Configuration</h3>
+        <h3>Run Configuration</h3>
 
         <div className="config-grid">
           <div className="form-group">

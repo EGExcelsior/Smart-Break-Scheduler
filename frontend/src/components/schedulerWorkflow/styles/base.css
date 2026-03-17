@@ -1,8 +1,16 @@
 :root {
-  --mw-brand-500: #667eea;
-  --mw-brand-600: #5568d3;
-  --mw-accent-500: #764ba2;
-  --mw-brand-rgb: 102, 126, 234;
+  --mw-ink-950: #15242b;
+  --mw-ink-900: #1d2f36;
+  --mw-ink-700: #3d5257;
+  --mw-sand-50: #faf6ef;
+  --mw-sand-100: #f1e9dc;
+  --mw-sand-200: #e5d8c3;
+  --mw-card: #fffdf8;
+  --mw-line: #d7ccb9;
+  --mw-brand-500: #0f766e;
+  --mw-brand-600: #0b5f59;
+  --mw-accent-500: #c97a2b;
+  --mw-brand-rgb: 15, 118, 110;
 }
 
 * {
@@ -12,38 +20,137 @@
 }
 
 .modern-workflow {
-  min-height: 100vh;
-  background: linear-gradient(135deg, var(--mw-brand-500) 0%, var(--mw-accent-500) 100%);
-  padding: 40px 20px;
+  padding: 0 0 2rem;
+}
+
+.workflow-shell {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.workflow-intro {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  align-items: end;
+  margin: 0 auto 1.5rem;
+}
+
+.workflow-kicker,
+.step-eyebrow {
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mw-accent-500);
+  margin-bottom: 0.65rem;
+}
+
+.workflow-heading {
+  font-family: 'Space Grotesk', 'Manrope', sans-serif;
+  font-size: clamp(1.9rem, 3vw, 3rem);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: #f7efe2;
+  margin-bottom: 0.75rem;
+}
+
+.workflow-summary {
+  max-width: 700px;
+  color: rgba(247, 239, 226, 0.8);
+  line-height: 1.7;
+  font-size: 0.98rem;
+}
+
+.workflow-status-card {
+  min-width: 220px;
+  padding: 1.1rem 1.2rem;
+  border-radius: 20px;
+  border: 1px solid rgba(247, 239, 226, 0.12);
+  background: rgba(247, 239, 226, 0.08);
+  backdrop-filter: blur(12px);
+  color: #f7efe2;
+}
+
+.workflow-status-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(247, 239, 226, 0.62);
+  margin-bottom: 0.45rem;
+}
+
+.workflow-status-card strong {
+  display: block;
+  font-family: 'Space Grotesk', 'Manrope', sans-serif;
+  font-size: 1.2rem;
+  margin-bottom: 0.35rem;
+}
+
+.workflow-status-card p {
+  color: rgba(247, 239, 226, 0.72);
+  font-size: 0.9rem;
 }
 
 .step-content {
-  max-width: 1000px;
+  max-width: 1180px;
   margin: 0 auto;
-  background: white;
-  border-radius: 12px;
-  padding: 40px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.58)),
+    var(--mw-card);
+  border: 1px solid rgba(215, 204, 185, 0.9);
+  border-radius: 28px;
+  padding: 2.2rem;
+  box-shadow: 0 28px 70px rgba(21, 36, 43, 0.12);
   animation: fadeInUp 0.4s ease;
 }
 
+.step-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.25rem;
+  align-items: start;
+  margin-bottom: 1.5rem;
+}
+
+.step-header > div:first-child {
+  max-width: 720px;
+}
+
+.step-panel-note {
+  max-width: 320px;
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(201, 122, 43, 0.12));
+  border: 1px solid rgba(15, 118, 110, 0.14);
+  color: var(--mw-ink-700);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
 .step-title {
-  font-size: 28px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 8px;
+  font-family: 'Space Grotesk', 'Manrope', sans-serif;
+  font-size: clamp(1.8rem, 2.2vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--mw-ink-950);
+  margin-bottom: 0.35rem;
 }
 
 .step-subtitle {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 24px;
+  font-size: 0.98rem;
+  color: var(--mw-ink-700);
+  margin-bottom: 0;
   line-height: 1.6;
+  max-width: 62ch;
 }
 
 .selection-count {
   color: var(--mw-brand-500);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 @keyframes fadeInUp {
