@@ -72,22 +72,6 @@ const SchedulerWorkflow = () => {
   return (
     <div className="modern-workflow">
       <section className="workflow-shell">
-        <div className="workflow-intro">
-          <div>
-            <p className="workflow-kicker">Daily planner</p>
-            <h2 className="workflow-heading">A clearer run sheet for break scheduling</h2>
-            <p className="workflow-summary">
-              Move from raw staffing inputs to a finished planner with fewer visual jumps and better decision context.
-            </p>
-          </div>
-
-          <div className="workflow-status-card">
-            <span className="workflow-status-label">Current stage</span>
-            <strong>{currentStepLabel}</strong>
-            <p>Step {currentStep} of {STEP_LABELS.length}</p>
-          </div>
-        </div>
-
         <ProgressBar currentStep={currentStep} />
         <ErrorMessage error={error} onDismiss={() => setError(null)} />
 
@@ -153,6 +137,12 @@ const SchedulerWorkflow = () => {
             onResetWorkflow={resetWorkflow}
           />
         )}
+
+        <div className="workflow-stage-footer" aria-live="polite">
+          <span className="workflow-stage-footer-label">Current stage</span>
+          <strong>{currentStepLabel}</strong>
+          <p>Step {currentStep} of {STEP_LABELS.length}</p>
+        </div>
       </section>
     </div>
   );

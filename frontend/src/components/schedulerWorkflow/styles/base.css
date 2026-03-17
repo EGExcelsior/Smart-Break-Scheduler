@@ -26,7 +26,37 @@
 .workflow-shell {
   width: min(1180px, 100%);
   margin: 0 auto;
-  padding: 0 1rem 0.2rem;
+  padding: 0 1rem 0.4rem;
+}
+
+.workflow-stage-footer {
+  margin-top: 0.8rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid rgba(247, 239, 226, 0.16);
+  background: rgba(247, 239, 226, 0.08);
+  color: #f7efe2;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.workflow-stage-footer-label {
+  font-size: 0.66rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: rgba(247, 239, 226, 0.7);
+}
+
+.workflow-stage-footer strong {
+  font-size: 0.9rem;
+  font-family: 'Space Grotesk', 'Manrope', sans-serif;
+}
+
+.workflow-stage-footer p {
+  font-size: 0.78rem;
+  color: rgba(247, 239, 226, 0.76);
 }
 
 .workflow-intro {

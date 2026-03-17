@@ -49,9 +49,10 @@
 }
 
 .progress-step.active .step-number {
-  background: var(--mw-brand-500);
-  color: #f8f2e8;
-  box-shadow: 0 10px 25px rgba(var(--mw-brand-rgb), 0.34);
+  background: #f8f2e8;
+  color: var(--mw-brand-600);
+  border: 1px solid rgba(var(--mw-brand-rgb), 0.36);
+  box-shadow: 0 8px 20px rgba(var(--mw-brand-rgb), 0.2);
 }
 
 .progress-step.completed .step-number {
@@ -66,6 +67,10 @@
   text-align: left;
   width: auto;
   line-height: 1.35;
+}
+
+.progress-step.active .step-label {
+  color: var(--mw-ink-950);
 }
 
 .progress-line {
