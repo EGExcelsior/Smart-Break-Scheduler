@@ -2,6 +2,7 @@ const fs = require('fs');
 const XLSX = require('xlsx');
 
 const { UNIT_CATEGORIES } = require('../../config/constants');
+const { getCategoryFromUnit } = require('../../utils/unitHelpers');
 
 const VERBOSE_API_LOGS = process.env.VERBOSE_API_LOGS === 'true';
 
@@ -111,14 +112,7 @@ function getUnitsWithStatus(zoneFilePath, date, dayCode) {
   };
 
   for (const unitName of allUnits) {
-    let category = 'Retail';
-
-    for (const [categoryName, unitList] of Object.entries(UNIT_CATEGORIES)) {
-      if (unitList.includes(unitName)) {
-        category = categoryName;
-        break;
-      }
-    }
+    const category = getCategoryFromUnit(unitName);
 
     result[category].push({
       name: unitName,

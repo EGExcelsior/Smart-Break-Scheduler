@@ -16,7 +16,8 @@ function canonicalizeUnitName(unitName) {
     return unitName;
   }
 
-  const compact = unitName.trim().replace(/\s+/g, ' ');
+  let compact = unitName.trim().replace(/\s+/g, ' ');
+  compact = compact.replace(/^(nexus|odyssey|phantom)\s+/i, '');
   const lower = compact.toLowerCase();
 
   if (lower === 'sea life' || lower === 'sealife') {
@@ -50,6 +51,20 @@ function filterUnitsForTeam(unitsByCategory, teamName) {
 
 function getCategoryFromUnit(unitName) {
   const canonicalUnit = canonicalizeUnitName(unitName);
+  const canonicalLower = typeof canonicalUnit === 'string' ? canonicalUnit.toLowerCase() : '';
+
+  if (canonicalLower.includes('break cover') || canonicalLower.includes('zonal lead')) {
+    return 'Break Cover';
+  }
+
+  if (canonicalLower.startsWith('car parks')) {
+    return 'Car Parks';
+  }
+
+  if (canonicalLower.startsWith('ghi')) {
+    return 'GHI';
+  }
+
   for (const [category, unitList] of Object.entries(UNIT_CATEGORIES)) {
     if (unitList.some((unit) => canonicalizeUnitName(unit) === canonicalUnit)) {
       return category;
