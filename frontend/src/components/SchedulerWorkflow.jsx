@@ -1,12 +1,12 @@
 import './SchedulerWorkflow.css';
-import AnalysisReview from './schedulerWorkflow/AnalysisReview';
-import AssignmentReview from './schedulerWorkflow/AssignmentReview';
-import ErrorMessage from './schedulerWorkflow/ErrorMessage';
-import ProgressBar from './schedulerWorkflow/ProgressBar';
-import UnitSelection from './schedulerWorkflow/UnitSelection';
-import UploadConfiguration from './schedulerWorkflow/UploadConfiguration';
-import WorkflowCompletion from './schedulerWorkflow/WorkflowCompletion';
-import useSchedulerWorkflow from './schedulerWorkflow/useSchedulerWorkflow';
+import AnalysisReview from './schedulerWorkflow/screens/AnalysisReview';
+import AssignmentReview from './schedulerWorkflow/screens/AssignmentReview';
+import UnitSelection from './schedulerWorkflow/screens/UnitSelection';
+import UploadConfiguration from './schedulerWorkflow/screens/UploadConfiguration';
+import WorkflowCompletion from './schedulerWorkflow/screens/WorkflowCompletion';
+import ErrorMessage from './schedulerWorkflow/ui/ErrorMessage';
+import ProgressBar from './schedulerWorkflow/ui/ProgressBar';
+import useSchedulerWorkflow from './schedulerWorkflow/hooks/useSchedulerWorkflow';
 
 /**
  * Modern Merlin ShiftFlow UI - V9.0

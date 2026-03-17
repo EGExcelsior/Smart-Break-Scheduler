@@ -1,6 +1,6 @@
-import ActionButtons from './ActionButtons';
-import FileUploadCard from './FileUploadCard';
-import { FILE_CONFIG, TEAM_OPTIONS } from './config';
+import ActionButtons from '../ui/ActionButtons';
+import FileUploadCard from '../ui/FileUploadCard';
+import { FILE_CONFIG, TEAM_OPTIONS } from '../config/config';
 
 const UploadConfiguration = ({
   files,
@@ -22,7 +22,7 @@ const UploadConfiguration = ({
 }) => {
   return (
     <div className="step-content">
-      <h2 className="step-title">Step 1: Upload Files & Configure</h2>
+      <h2 className="step-title">Inputs & Setup</h2>
 
       <div className="upload-cards">
         {Object.entries(FILE_CONFIG).map(([fileType, config]) => (
@@ -99,9 +99,9 @@ const UploadConfiguration = ({
       </div>
 
       <ActionButtons
-        primaryLabel="Parse & Analyze Files"
+        primaryLabel="Run Readiness Check"
         primaryIcon="🔍"
-        primaryLoadingLabel="Analyzing..."
+        primaryLoadingLabel="Checking..."
         onPrimary={onParseAnalyze}
         loading={loading}
         disabled={!canProceed}

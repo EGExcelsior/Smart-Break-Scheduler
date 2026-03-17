@@ -1,4 +1,4 @@
-import ActionButtons from './ActionButtons';
+import ActionButtons from '../ui/ActionButtons';
 
 const WorkflowCompletion = ({ assignmentResult, selectedUnits, date, dayCode, onResetWorkflow }) => {
   const alertSummary = assignmentResult?.alerts;
@@ -8,7 +8,7 @@ const WorkflowCompletion = ({ assignmentResult, selectedUnits, date, dayCode, on
     <div className="step-content">
       <div className="success-message">
         <span className="success-icon">✅</span>
-        <h2>Break Planner Generated Successfully!</h2>
+        <h2>Planner Complete</h2>
         <p>
           Your Excel planner has been downloaded with {assignmentResult?.assigned || 0} of {assignmentResult?.total || 0}{' '}
           positions filled ({assignmentResult?.fillRate || '0%'}).
@@ -40,7 +40,7 @@ const WorkflowCompletion = ({ assignmentResult, selectedUnits, date, dayCode, on
         </div>
       )}
 
-      <ActionButtons primaryLabel="Create Another Schedule" primaryIcon="🔄" onPrimary={onResetWorkflow} />
+      <ActionButtons primaryLabel="Start New Planner Run" primaryIcon="🔄" onPrimary={onResetWorkflow} />
     </div>
   );
 };

@@ -163,13 +163,25 @@ break-scheduler/
 │   │   │   ├── SchedulerWorkflow.jsx
 │   │   │   ├── SchedulerWorkflow.css
 │   │   │   └── schedulerWorkflow/
-│   │   │      ├── useSchedulerWorkflow.js
-│   │   │      ├── api.js
-│   │   │      ├── UploadConfiguration.jsx
-│   │   │      ├── AnalysisReview.jsx
-│   │   │      ├── UnitSelection.jsx
-│   │   │      ├── AssignmentReview.jsx
-│   │   │      ├── WorkflowCompletion.jsx
+│   │   │      ├── config/
+│   │   │      │   └── config.js
+│   │   │      ├── hooks/
+│   │   │      │   └── useSchedulerWorkflow.js
+│   │   │      ├── services/
+│   │   │      │   └── api.js
+│   │   │      ├── screens/
+│   │   │      │   ├── UploadConfiguration.jsx
+│   │   │      │   ├── AnalysisReview.jsx
+│   │   │      │   ├── UnitSelection.jsx
+│   │   │      │   ├── AssignmentReview.jsx
+│   │   │      │   └── WorkflowCompletion.jsx
+│   │   │      ├── ui/
+│   │   │      │   ├── ActionButtons.jsx
+│   │   │      │   ├── ErrorMessage.jsx
+│   │   │      │   ├── FileUploadCard.jsx
+│   │   │      │   ├── ProgressBar.jsx
+│   │   │      │   ├── StatsGrid.jsx
+│   │   │      │   └── UnitsSelector.jsx
 │   │   │      └── styles/
 │   │   ├── App.js
 │   │   ├── index.js

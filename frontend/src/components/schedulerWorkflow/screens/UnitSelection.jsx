@@ -1,5 +1,5 @@
-import ActionButtons from './ActionButtons';
-import UnitsSelector from './UnitsSelector';
+import ActionButtons from '../ui/ActionButtons';
+import UnitsSelector from '../ui/UnitsSelector';
 
 const UnitSelection = ({
   units,
@@ -16,7 +16,7 @@ const UnitSelection = ({
 }) => {
   return (
     <div className="step-content">
-      <h2 className="step-title">Step 3: Select Units to Staff</h2>
+      <h2 className="step-title">Coverage Selection</h2>
       <p className="step-subtitle">
         Defaults loaded from Closed Days sheet. Toggle any unit as needed.
         {selectedUnits.length > 0 && <span className="selection-count"> ({selectedUnits.length} units selected)</span>}
@@ -44,9 +44,9 @@ const UnitSelection = ({
 
       <ActionButtons
         onBack={onBack}
-        primaryLabel="Auto-Assign Staff"
+        primaryLabel="Build Assignment Plan"
         primaryIcon="🎯"
-        primaryLoadingLabel="Assigning..."
+        primaryLoadingLabel="Building Plan..."
         onPrimary={onAutoAssign}
         loading={loading}
         disabled={!canProceed}

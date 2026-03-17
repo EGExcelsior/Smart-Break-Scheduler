@@ -1,5 +1,5 @@
-import ActionButtons from './ActionButtons';
-import StatsGrid from './StatsGrid';
+import ActionButtons from '../ui/ActionButtons';
+import StatsGrid from '../ui/StatsGrid';
 
 const AnalysisReview = ({
   analysisResult,
@@ -24,7 +24,7 @@ const AnalysisReview = ({
 
   return (
     <div className="step-content">
-      <h2 className="step-title">Step 2: Review Analysis</h2>
+      <h2 className="step-title">Readiness Review</h2>
       <StatsGrid stats={stats} />
 
       {hasAbsenceWithShiftAlerts && (
@@ -63,9 +63,9 @@ const AnalysisReview = ({
 
       <ActionButtons
         onBack={onBack}
-        primaryLabel="Select Units to Staff"
+        primaryLabel="Open Coverage Selection"
         primaryIcon="📋"
-        primaryLoadingLabel="Loading Units..."
+        primaryLoadingLabel="Loading Coverage..."
         onPrimary={onLoadUnits}
         loading={loading}
         disabled={!canProceed}

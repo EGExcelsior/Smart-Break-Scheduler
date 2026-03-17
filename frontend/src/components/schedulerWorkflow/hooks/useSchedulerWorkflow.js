@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
-import { TEAM_TO_ZONE_MAP, VALID_EXTENSIONS } from './config';
+import { TEAM_TO_ZONE_MAP, VALID_EXTENSIONS } from '../config/config';
 import {
   autoAssign,
   downloadExcelFile,
   fetchDayCodesForZone,
   fetchUnitStatus,
   parseAndAnalyze
-} from './api';
+} from '../services/api';
 
 const createBaseFormData = ({ files, teamName, zone, date, dayCode }) => {
   const formData = new FormData();

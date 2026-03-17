@@ -11,11 +11,11 @@ export const TEAM_OPTIONS = [
 ];
 
 export const STEP_LABELS = [
-  'Upload & Configure',
-  'Review Analysis',
-  'Select Units',
-  'Auto-Assign',
-  'Complete'
+  'Inputs & Setup',
+  'Readiness Review',
+  'Coverage Selection',
+  'Assignment Review',
+  'Planner Complete'
 ];
 
 export const FILE_CONFIG = {

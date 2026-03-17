@@ -1,5 +1,5 @@
-import ActionButtons from './ActionButtons';
-import StatsGrid from './StatsGrid';
+import ActionButtons from '../ui/ActionButtons';
+import StatsGrid from '../ui/StatsGrid';
 
 const AssignmentReview = ({ assignmentResult, onBack }) => {
   const stats = [
@@ -10,7 +10,7 @@ const AssignmentReview = ({ assignmentResult, onBack }) => {
 
   return (
     <div className="step-content">
-      <h2 className="step-title">Step 4: Review Assignments</h2>
+      <h2 className="step-title">Assignment Review</h2>
       <StatsGrid stats={stats} />
       <ActionButtons onBack={onBack} />
     </div>

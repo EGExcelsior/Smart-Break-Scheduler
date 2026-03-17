@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { STEP_LABELS } from './config';
+import { STEP_LABELS } from '../config/config';
 
 const ProgressBar = ({ currentStep }) => {
   return (
