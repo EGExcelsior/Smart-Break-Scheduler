@@ -49,15 +49,15 @@ const {
 const { detectBriefingStaff } = require('../utils/assignmentMeta');
 const { getSpecificUnitFromFunction } = require('../utils/plannedFunctionMapper');
 const { upload } = require('../middleware/upload');
+const { asyncHandler } = require('../middleware/asyncHandler');
 
 const router = express.Router();
 
 router.post('/auto-assign', upload.fields([
   { name: 'skillsMatrix', maxCount: 1 },
   { name: 'timegripCsv', maxCount: 1 }
-]), async (req, res) => {
-  try {
-    const { teamName, zone, dayCode, date, selectedUnits, includeAbsentStaff } = req.body;
+]), asyncHandler(async (req, res) => {
+  const { teamName, zone, dayCode, date, selectedUnits, includeAbsentStaff } = req.body;
 
     if (!req.files['skillsMatrix'] || !req.files['timegripCsv']) {
       return res.status(400).json({ error: 'Missing required files' });
@@ -736,20 +736,16 @@ router.post('/auto-assign', upload.fields([
     const filename = `planner-${zone}-${dayCode}-${date.replace(/\//g, '-')}.xlsx`;
     console.log(`Generated Excel planner: ${filename} (${staffedRequiredSlots}/${totalNeeded} required positions filled)`);
 
-    res.json({
-      success: true,
-      assigned: staffedRequiredSlots,
-      total: totalNeeded,
-      fillRate: totalNeeded > 0 ? Math.round((staffedRequiredSlots / totalNeeded) * 100) : 0,
-      assignments,
-      alerts: timegripData.alerts || null,
-      excelFile: base64,
-      filename
-    });
-  } catch (error) {
-    console.error('Assignment error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+  res.json({
+    success: true,
+    assigned: staffedRequiredSlots,
+    total: totalNeeded,
+    fillRate: totalNeeded > 0 ? Math.round((staffedRequiredSlots / totalNeeded) * 100) : 0,
+    assignments,
+    alerts: timegripData.alerts || null,
+    excelFile: base64,
+    filename
+  });
+}));
 
 module.exports = router;
