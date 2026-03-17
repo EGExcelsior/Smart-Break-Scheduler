@@ -211,6 +211,11 @@
   margin-left: auto;
 }
 
+.closed-badge--locked {
+  background: rgba(15, 118, 110, 0.14);
+  color: var(--mw-brand-700);
+}
+
 .unit-checkbox.is-selected {
   background: linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(255, 253, 248, 0.98));
   border-color: rgba(15, 118, 110, 0.44);
@@ -219,6 +224,14 @@
 
 .unit-checkbox.is-default-closed {
   border-color: rgba(199, 82, 59, 0.18);
+}
+
+.unit-checkbox.is-locked-open {
+  border-color: rgba(15, 118, 110, 0.34);
+}
+
+.unit-checkbox.is-locked-open input {
+  cursor: not-allowed;
 }
 
 .unit-checkbox--group {

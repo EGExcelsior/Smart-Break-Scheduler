@@ -15,6 +15,7 @@ const UnitSelection = ({
   onSetAllClosed
 }) => {
   const allUnits = Object.values(units).flat();
+  const lockedOpenUnitNames = (units['Zonal Leads'] || []).map((unit) => unit.name);
   const totalUnits = allUnits.length;
   const defaultOpenUnits = allUnits.filter((unit) => unit.originalOpen).length;
   const defaultClosedUnits = totalUnits - defaultOpenUnits;
@@ -68,6 +69,7 @@ const UnitSelection = ({
       <UnitsSelector
         units={units}
         selectedUnits={selectedUnits}
+        lockedOpenUnitNames={lockedOpenUnitNames}
         onUnitToggle={onUnitToggle}
         onCategoryToggle={onCategoryToggle}
       />

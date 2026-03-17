@@ -108,16 +108,19 @@ function getUnitsWithStatus(zoneFilePath, date, dayCode) {
     'Retail': [],
     'Car Parks': [],
     'GHI': [],
-    'Break Cover': []
+    'Break Cover': [],
+    'Zonal Leads': []
   };
 
   for (const unitName of allUnits) {
     const category = getCategoryFromUnit(unitName);
+    const isZonalLead = category === 'Zonal Leads';
+    const resolvedOpen = isZonalLead ? true : closedDaysStatus[unitName] !== false;
 
     result[category].push({
       name: unitName,
-      isOpen: closedDaysStatus[unitName] !== false,
-      originalOpen: closedDaysStatus[unitName] !== false
+      isOpen: resolvedOpen,
+      originalOpen: resolvedOpen
     });
   }
 

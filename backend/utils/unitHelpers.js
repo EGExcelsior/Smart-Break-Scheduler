@@ -53,7 +53,11 @@ function getCategoryFromUnit(unitName) {
   const canonicalUnit = canonicalizeUnitName(unitName);
   const canonicalLower = typeof canonicalUnit === 'string' ? canonicalUnit.toLowerCase() : '';
 
-  if (canonicalLower.includes('break cover') || canonicalLower.includes('zonal lead')) {
+  if (canonicalLower.includes('zonal lead')) {
+    return 'Zonal Leads';
+  }
+
+  if (canonicalLower.includes('break cover')) {
     return 'Break Cover';
   }
 

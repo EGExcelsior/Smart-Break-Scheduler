@@ -17,16 +17,21 @@
   min-width: 190px;
   padding: 0.95rem 1rem;
   border-radius: 20px;
-  border: 1px solid rgba(247, 239, 226, 0.12);
-  background: rgba(247, 239, 226, 0.08);
+  border: 1px solid rgba(61, 82, 87, 0.18);
+  background: rgba(255, 253, 248, 0.88);
   backdrop-filter: blur(12px);
   transition: transform 0.25s ease, background 0.25s ease, border-color 0.25s ease;
 }
 
 .progress-step.active {
-  background: rgba(247, 239, 226, 0.18);
-  border-color: rgba(247, 239, 226, 0.28);
+  background: rgba(15, 118, 110, 0.12);
+  border-color: rgba(15, 118, 110, 0.26);
   transform: translateY(-2px);
+}
+
+.progress-step.completed {
+  background: rgba(201, 122, 43, 0.14);
+  border-color: rgba(201, 122, 43, 0.26);
 }
 
 .progress-step .step-number {
@@ -57,7 +62,7 @@
 .progress-step .step-label {
   font-size: 0.84rem;
   font-weight: 700;
-  color: #f8f2e8;
+  color: var(--mw-ink-900);
   text-align: left;
   width: auto;
   line-height: 1.35;
@@ -66,6 +71,6 @@
 .progress-line {
   width: 22px;
   height: 1px;
-  background: rgba(247, 239, 226, 0.28);
+  background: rgba(61, 82, 87, 0.22);
   flex-shrink: 0;
 }

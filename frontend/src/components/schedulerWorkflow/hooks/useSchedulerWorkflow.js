@@ -19,6 +19,21 @@ const createBaseFormData = ({ files, teamName, zone, date, dayCode }) => {
   return formData;
 };
 
+const LOCKED_OPEN_CATEGORY = 'Zonal Leads';
+
+const getLockedOpenUnitNames = (unitsByCategory) => {
+  if (!unitsByCategory || !unitsByCategory[LOCKED_OPEN_CATEGORY]) {
+    return [];
+  }
+
+  return unitsByCategory[LOCKED_OPEN_CATEGORY].map((unit) => unit.name);
+};
+
+const enforceLockedOpenUnits = (selectedUnitNames, unitsByCategory) => {
+  const lockedOpenUnitNames = getLockedOpenUnitNames(unitsByCategory);
+  return Array.from(new Set([...(selectedUnitNames || []), ...lockedOpenUnitNames]));
+};
+
 const useSchedulerWorkflow = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [files, setFiles] = useState({
@@ -116,7 +131,7 @@ const useSchedulerWorkflow = () => {
 
       const allUnits = Object.values(data.units).flat();
       const openUnits = allUnits.filter((unit) => unit.isOpen).map((unit) => unit.name);
-      setSelectedUnits(openUnits);
+      setSelectedUnits(enforceLockedOpenUnits(openUnits, data.units));
       setCurrentStep(3);
     } catch (requestError) {
       setError(requestError.message);
@@ -126,21 +141,29 @@ const useSchedulerWorkflow = () => {
   };
 
   const handleUnitToggle = (unitName, isOpen) => {
+    const lockedOpenUnitNames = getLockedOpenUnitNames(units);
+    if (!isOpen && lockedOpenUnitNames.includes(unitName)) {
+      return;
+    }
+
     setSelectedUnits((prev) => {
       if (isOpen) {
-        return [...prev, unitName];
+        return Array.from(new Set([...prev, unitName]));
       }
-      return prev.filter((name) => name !== unitName);
+      return enforceLockedOpenUnits(prev.filter((name) => name !== unitName), units);
     });
   };
 
   const handleCategoryToggle = (unitList, isOpen) => {
+    const lockedOpenUnitNames = getLockedOpenUnitNames(units);
     setSelectedUnits((prev) => {
       const unitNames = unitList.map((unit) => unit.name);
       if (isOpen) {
-        return [...prev.filter((name) => !unitNames.includes(name)), ...unitNames];
+        return Array.from(new Set([...prev.filter((name) => !unitNames.includes(name)), ...unitNames]));
       }
-      return prev.filter((name) => !unitNames.includes(name));
+
+      const removableUnitNames = unitNames.filter((name) => !lockedOpenUnitNames.includes(name));
+      return enforceLockedOpenUnits(prev.filter((name) => !removableUnitNames.includes(name)), units);
     });
   };
 
@@ -150,11 +173,11 @@ const useSchedulerWorkflow = () => {
     }
 
     const allUnits = Object.values(units).flat();
-    setSelectedUnits(allUnits.map((unit) => unit.name));
+    setSelectedUnits(Array.from(new Set(allUnits.map((unit) => unit.name))));
   };
 
   const handleSetAllClosed = () => {
-    setSelectedUnits([]);
+    setSelectedUnits(enforceLockedOpenUnits([], units));
   };
 
   const handleResetDefaults = () => {
@@ -163,7 +186,8 @@ const useSchedulerWorkflow = () => {
     }
 
     const allUnits = Object.values(units).flat();
-    setSelectedUnits(allUnits.filter((unit) => unit.originalOpen).map((unit) => unit.name));
+    const defaultOpenUnits = allUnits.filter((unit) => unit.originalOpen).map((unit) => unit.name);
+    setSelectedUnits(enforceLockedOpenUnits(defaultOpenUnits, units));
   };
 
   const handleParseAnalyze = async () => {
