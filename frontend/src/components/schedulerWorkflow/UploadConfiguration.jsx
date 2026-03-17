@@ -2,7 +2,7 @@ import ActionButtons from './ActionButtons';
 import FileUploadCard from './FileUploadCard';
 import { FILE_CONFIG, TEAM_OPTIONS } from './config';
 
-const StepOneUploadConfig = ({
+const UploadConfiguration = ({
   files,
   teamName,
   zone,
@@ -110,4 +110,4 @@ const StepOneUploadConfig = ({
   );
 };
 
-export default StepOneUploadConfig;
+export default UploadConfiguration;

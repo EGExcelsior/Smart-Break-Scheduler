@@ -19,7 +19,7 @@ const createBaseFormData = ({ files, teamName, zone, date, dayCode }) => {
   return formData;
 };
 
-const useModernWorkflow = () => {
+const useSchedulerWorkflow = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [files, setFiles] = useState({
     skillsMatrix: null,
@@ -287,4 +287,4 @@ const useModernWorkflow = () => {
   };
 };
 
-export default useModernWorkflow;
+export default useSchedulerWorkflow;

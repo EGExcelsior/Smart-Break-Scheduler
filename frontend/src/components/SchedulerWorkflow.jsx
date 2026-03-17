@@ -1,12 +1,12 @@
-import './ModernWorkflow.css';
-import ProgressBar from './modernWorkflow/ProgressBar';
-import ErrorMessage from './modernWorkflow/ErrorMessage';
-import StepOneUploadConfig from './modernWorkflow/StepOneUploadConfig';
-import StepTwoReviewAnalysis from './modernWorkflow/StepTwoReviewAnalysis';
-import StepThreeSelectUnits from './modernWorkflow/StepThreeSelectUnits';
-import StepFourReviewAssignments from './modernWorkflow/StepFourReviewAssignments';
-import StepFiveComplete from './modernWorkflow/StepFiveComplete';
-import useModernWorkflow from './modernWorkflow/useModernWorkflow';
+import './SchedulerWorkflow.css';
+import AnalysisReview from './schedulerWorkflow/AnalysisReview';
+import AssignmentReview from './schedulerWorkflow/AssignmentReview';
+import ErrorMessage from './schedulerWorkflow/ErrorMessage';
+import ProgressBar from './schedulerWorkflow/ProgressBar';
+import UnitSelection from './schedulerWorkflow/UnitSelection';
+import UploadConfiguration from './schedulerWorkflow/UploadConfiguration';
+import WorkflowCompletion from './schedulerWorkflow/WorkflowCompletion';
+import useSchedulerWorkflow from './schedulerWorkflow/useSchedulerWorkflow';
 
 /**
  * Modern Merlin ShiftFlow UI - V9.0
@@ -22,7 +22,7 @@ import useModernWorkflow from './modernWorkflow/useModernWorkflow';
  * - Progress indicators
  */
 
-const ModernWorkflow = () => {
+const SchedulerWorkflow = () => {
   const {
     state: {
       currentStep,
@@ -64,7 +64,7 @@ const ModernWorkflow = () => {
       handleToggleIncludedAbsentStaff,
       resetWorkflow
     }
-  } = useModernWorkflow();
+  } = useSchedulerWorkflow();
 
   return (
     <div className="modern-workflow">
@@ -72,7 +72,7 @@ const ModernWorkflow = () => {
       <ErrorMessage error={error} onDismiss={() => setError(null)} />
 
       {currentStep === 1 && (
-        <StepOneUploadConfig
+        <UploadConfiguration
           files={files}
           teamName={teamName}
           zone={zone}
@@ -93,7 +93,7 @@ const ModernWorkflow = () => {
       )}
 
       {currentStep === 2 && analysisResult && (
-        <StepTwoReviewAnalysis
+        <AnalysisReview
           analysisResult={analysisResult}
           includedAbsentStaff={includedAbsentStaff}
           loading={loading}
@@ -105,7 +105,7 @@ const ModernWorkflow = () => {
       )}
 
       {currentStep === 3 && units && (
-        <StepThreeSelectUnits
+        <UnitSelection
           units={units}
           selectedUnits={selectedUnits}
           loading={loading}
@@ -121,11 +121,11 @@ const ModernWorkflow = () => {
       )}
 
       {currentStep === 4 && assignmentResult && (
-        <StepFourReviewAssignments assignmentResult={assignmentResult} onBack={() => setCurrentStep(3)} />
+        <AssignmentReview assignmentResult={assignmentResult} onBack={() => setCurrentStep(3)} />
       )}
 
       {currentStep === 5 && (
-        <StepFiveComplete
+        <WorkflowCompletion
           assignmentResult={assignmentResult}
           selectedUnits={selectedUnits}
           date={date}
@@ -137,4 +137,4 @@ const ModernWorkflow = () => {
   );
 };
 
-export default ModernWorkflow;
+export default SchedulerWorkflow;

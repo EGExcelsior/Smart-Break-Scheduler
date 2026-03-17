@@ -160,16 +160,16 @@ break-scheduler/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── ModernWorkflow.jsx
-│   │   │   ├── ModernWorkflow.css
-│   │   │   └── modernWorkflow/
-│   │   │      ├── useModernWorkflow.js
+│   │   │   ├── SchedulerWorkflow.jsx
+│   │   │   ├── SchedulerWorkflow.css
+│   │   │   └── schedulerWorkflow/
+│   │   │      ├── useSchedulerWorkflow.js
 │   │   │      ├── api.js
-│   │   │      ├── StepOneUploadConfig.jsx
-│   │   │      ├── StepTwoReviewAnalysis.jsx
-│   │   │      ├── StepThreeSelectUnits.jsx
-│   │   │      ├── StepFourReviewAssignments.jsx
-│   │   │      ├── StepFiveComplete.jsx
+│   │   │      ├── UploadConfiguration.jsx
+│   │   │      ├── AnalysisReview.jsx
+│   │   │      ├── UnitSelection.jsx
+│   │   │      ├── AssignmentReview.jsx
+│   │   │      ├── WorkflowCompletion.jsx
 │   │   │      └── styles/
 │   │   ├── App.js
 │   │   ├── index.js
@@ -361,7 +361,7 @@ Edit `backend/data/dayCodeRequirements.js`:
 
 ### Modifying UI Colors
 
-Edit `frontend/src/components/ModernWorkflow.css`:
+Edit `frontend/src/components/SchedulerWorkflow.css`:
 
 ```css
 /* Primary gradient */
@@ -377,7 +377,7 @@ background: linear-gradient(135deg, #YOUR_COLOR 0%, #YOUR_COLOR 100%);
 
 - This README is the primary project documentation.
 - Backend implementation details are in `backend/` route, parser, and service modules.
-- Frontend workflow details are in `frontend/src/components/modernWorkflow/`.
+- Frontend workflow details are in `frontend/src/components/schedulerWorkflow/`.
 
 ---
 

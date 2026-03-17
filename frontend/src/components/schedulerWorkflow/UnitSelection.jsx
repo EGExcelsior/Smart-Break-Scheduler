@@ -1,7 +1,7 @@
 import ActionButtons from './ActionButtons';
 import UnitsSelector from './UnitsSelector';
 
-const StepThreeSelectUnits = ({
+const UnitSelection = ({
   units,
   selectedUnits,
   loading,
@@ -55,4 +55,4 @@ const StepThreeSelectUnits = ({
   );
 };
 
-export default StepThreeSelectUnits;
+export default UnitSelection;

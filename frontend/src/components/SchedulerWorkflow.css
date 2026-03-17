@@ -1,0 +1,7 @@
+@import './schedulerWorkflow/styles/base.css';
+@import './schedulerWorkflow/styles/progress.css';
+@import './schedulerWorkflow/styles/upload-config.css';
+@import './schedulerWorkflow/styles/units.css';
+@import './schedulerWorkflow/styles/feedback.css';
+@import './schedulerWorkflow/styles/actions-stats.css';
+@import './schedulerWorkflow/styles/responsive.css';

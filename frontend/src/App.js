@@ -1,5 +1,5 @@
 import React from 'react';
-import ModernWorkflow from './components/ModernWorkflow';
+import SchedulerWorkflow from './components/SchedulerWorkflow';
 import './App.css';
 
 function App() {
@@ -11,7 +11,7 @@ function App() {
       </header>
       
       <main className="App-main">
-        <ModernWorkflow />
+        <SchedulerWorkflow />
       </main>
       
       <footer className="App-footer">

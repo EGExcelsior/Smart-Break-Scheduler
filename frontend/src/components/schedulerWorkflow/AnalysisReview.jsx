@@ -1,7 +1,7 @@
 import ActionButtons from './ActionButtons';
 import StatsGrid from './StatsGrid';
 
-const StepTwoReviewAnalysis = ({
+const AnalysisReview = ({
   analysisResult,
   includedAbsentStaff,
   loading,
@@ -74,4 +74,4 @@ const StepTwoReviewAnalysis = ({
   );
 };
 
-export default StepTwoReviewAnalysis;
+export default AnalysisReview;

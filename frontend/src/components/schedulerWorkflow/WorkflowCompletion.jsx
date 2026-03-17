@@ -1,6 +1,6 @@
 import ActionButtons from './ActionButtons';
 
-const StepFiveComplete = ({ assignmentResult, selectedUnits, date, dayCode, onResetWorkflow }) => {
+const WorkflowCompletion = ({ assignmentResult, selectedUnits, date, dayCode, onResetWorkflow }) => {
   const alertSummary = assignmentResult?.alerts;
   const hasAbsenceWithShiftAlerts = (alertSummary?.absenceWithShiftCount || 0) > 0;
 
@@ -45,4 +45,4 @@ const StepFiveComplete = ({ assignmentResult, selectedUnits, date, dayCode, onRe
   );
 };
 
-export default StepFiveComplete;
+export default WorkflowCompletion;
