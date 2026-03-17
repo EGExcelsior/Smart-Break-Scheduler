@@ -85,11 +85,24 @@ body {
   margin: 0 auto;
 }
 
+.App-main::before {
+  content: '';
+  display: block;
+  width: min(1180px, 100%);
+  height: 1px;
+  margin: 0 auto 0.95rem;
+  background: linear-gradient(90deg, transparent, rgba(248, 242, 232, 0.26), transparent);
+}
+
 .App-footer {
-  color: rgba(22, 37, 44, 0.68);
-  padding: 0 1.5rem 2rem;
+  color: rgba(248, 242, 232, 0.82);
+  padding: 1.1rem 1.5rem 1.35rem;
   text-align: center;
   margin-top: auto;
+  background:
+    radial-gradient(circle at top, rgba(201, 122, 43, 0.14), transparent 46%),
+    linear-gradient(180deg, #16252c 0%, #20323a 100%);
+  border-top: 1px solid rgba(248, 242, 232, 0.08);
 }
 
 .App-footer p {
@@ -97,6 +110,7 @@ body {
   font-size: 0.85rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  color: rgba(248, 242, 232, 0.76);
 }
 
 @media (max-width: 768px) {
@@ -122,5 +136,9 @@ body {
 
   .App-main {
     padding: 0 0.5rem 1.5rem;
+  }
+
+  .App-main::before {
+    margin-bottom: 0.75rem;
   }
 }
