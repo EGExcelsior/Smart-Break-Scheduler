@@ -9,8 +9,100 @@ const DAY_CODE_HEADER_ROW_INDEX = 7;
 const UNIT_NAME_COLUMN_INDEX = 0;
 const POSITION_COLUMN_INDEX = 1;
 const DATA_START_ROW_INDEX = 11;
+const MIN_DAY_CODE_TOKENS = 3;
 const MAX_REASONABLE_STAFF_COUNT = 10;
 const VERBOSE_ZONE_PARSING = process.env.VERBOSE_ZONE_PARSING === 'true';
+
+function getDayCodeColumns(rowData = []) {
+  const columns = [];
+
+  for (let col = 0; col < rowData.length; col++) {
+    const value = toTrimmedString(rowData[col]);
+    if (/^[A-O]$/.test(value)) {
+      columns.push(col);
+    }
+  }
+
+  return columns;
+}
+
+function findDayCodeHeaderRowIndex(data) {
+  let bestRowIndex = -1;
+  let bestScore = -1;
+  const maxScanRows = Math.min(data.length, 120);
+
+  for (let row = 0; row < maxScanRows; row++) {
+    const dayCodeColumns = getDayCodeColumns(data[row] || []);
+
+    if (dayCodeColumns.length < MIN_DAY_CODE_TOKENS) {
+      continue;
+    }
+
+    const gaps = [];
+    for (let i = 1; i < dayCodeColumns.length; i++) {
+      gaps.push(dayCodeColumns[i] - dayCodeColumns[i - 1]);
+    }
+
+    const wideGapCount = gaps.filter((gap) => gap >= 3).length;
+    const score = dayCodeColumns.length + (wideGapCount * 2);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestRowIndex = row;
+    }
+  }
+
+  return bestRowIndex;
+}
+
+function findDataStartRowIndex(data, headerRowIndex) {
+  const skipUnitNames = new Set([
+    'unit name',
+    'total hours',
+    'pre-april cost',
+    'post-april cost',
+    'grade',
+    'zone',
+    'cost centre',
+    'start',
+    'end',
+    'break length (min)',
+    'staff #',
+    'fte'
+  ]);
+
+  for (let row = Math.max(0, headerRowIndex + 1); row < data.length; row++) {
+    const rowData = data[row];
+    if (!rowData) continue;
+
+    const unitName = toTrimmedString(rowData[UNIT_NAME_COLUMN_INDEX]);
+    const position = toTrimmedString(rowData[POSITION_COLUMN_INDEX]);
+
+    if (!unitName) continue;
+    if (skipUnitNames.has(toLowerTrimmed(unitName))) continue;
+    if (toLowerTrimmed(unitName) === 'none') continue;
+    if (position && toLowerTrimmed(position) === 'staffed position') continue;
+
+    return row;
+  }
+
+  return Math.max(headerRowIndex + 1, DATA_START_ROW_INDEX);
+}
+
+function getSchedulingWorksheet(workbook) {
+  if (workbook.Sheets['Scheduling']) {
+    return {
+      sheetName: 'Scheduling',
+      worksheet: workbook.Sheets['Scheduling']
+    };
+  }
+
+  const firstSheetName = workbook.SheetNames[0];
+  return {
+    sheetName: firstSheetName,
+    worksheet: workbook.Sheets[firstSheetName]
+  };
+}
 
 function discoverDayCodeSections(headerRow) {
   const dayCodeSections = [];
@@ -51,10 +143,10 @@ function getSectionStaffCount(rowData, section) {
   return 0;
 }
 
-function extractSectionRequirements(data, section) {
+function extractSectionRequirements(data, section, dataStartRowIndex) {
   const requirements = [];
 
-  for (let row = DATA_START_ROW_INDEX; row < data.length; row++) {
+  for (let row = dataStartRowIndex; row < data.length; row++) {
     if (!data[row]) continue;
 
     const unitName = data[row][UNIT_NAME_COLUMN_INDEX];
@@ -101,12 +193,20 @@ function parseZoneFile(filePath) {
   console.log(`\n📊 Parsing zone file: ${zoneFileName}`);
   
   const workbook = XLSX.readFile(filePath);
-  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  const { worksheet, sheetName } = getSchedulingWorksheet(workbook);
   const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
   
-  // Row 8 (index 7) has day code headers: A, B, C, D, E, etc.
-  const headerRow = data[DAY_CODE_HEADER_ROW_INDEX] || [];
+  const discoveredHeaderRowIndex = findDayCodeHeaderRowIndex(data);
+  const headerRowIndex = discoveredHeaderRowIndex >= 0 ? discoveredHeaderRowIndex : DAY_CODE_HEADER_ROW_INDEX;
+  const headerRow = data[headerRowIndex] || [];
   const dayCodeSections = discoverDayCodeSections(headerRow);
+  const dataStartRowIndex = findDataStartRowIndex(data, headerRowIndex);
+
+  if (VERBOSE_ZONE_PARSING) {
+    console.log(`🗂️  Using sheet: ${sheetName}`);
+    console.log(`📍 Day code header row index: ${headerRowIndex}`);
+    console.log(`📍 Data start row index: ${dataStartRowIndex}`);
+  }
   
   if (VERBOSE_ZONE_PARSING) {
     console.log(`🔍 Found day codes: ${dayCodeSections.map(d => `${d.code} (${d.label})`).join(', ')}`);
@@ -130,7 +230,7 @@ function parseZoneFile(filePath) {
       console.log(`\n📋 Parsing Day Code ${section.code} (${section.label}):`);
     }
 
-    staffingRequirements[section.code] = extractSectionRequirements(data, section);
+    staffingRequirements[section.code] = extractSectionRequirements(data, section, dataStartRowIndex);
   }
 
   if (!VERBOSE_ZONE_PARSING) {
