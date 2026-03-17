@@ -20,22 +20,22 @@
 }
 
 .modern-workflow {
-  padding: 0 0 2rem;
+  padding: 0 0 1.4rem;
 }
 
 .workflow-shell {
   width: min(1180px, 100%);
   margin: 0 auto;
-  padding: 0 1rem 0.35rem;
+  padding: 0 1rem 0.2rem;
 }
 
 .workflow-intro {
   display: flex;
   justify-content: space-between;
-  gap: 1.5rem;
+  gap: 1.15rem;
   align-items: flex-start;
-  margin: 0 auto 1.05rem;
-  padding-top: 0.25rem;
+  margin: 0 auto 0.78rem;
+  padding-top: 0.1rem;
 }
 
 .workflow-kicker,
@@ -45,35 +45,35 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--mw-accent-500);
-  margin-bottom: 0.65rem;
+  margin-bottom: 0.5rem;
 }
 
 .workflow-heading {
   font-family: 'Space Grotesk', 'Manrope', sans-serif;
-  font-size: clamp(1.75rem, 2.6vw, 2.55rem);
+  font-size: clamp(1.62rem, 2.35vw, 2.2rem);
   letter-spacing: -0.04em;
   line-height: 1.06;
   color: #f7efe2;
-  margin-bottom: 0.62rem;
+  margin-bottom: 0.48rem;
   max-width: 20ch;
 }
 
 .workflow-summary {
   max-width: 640px;
   color: rgba(247, 239, 226, 0.8);
-  line-height: 1.62;
-  font-size: 0.96rem;
+  line-height: 1.52;
+  font-size: 0.92rem;
 }
 
 .workflow-status-card {
   min-width: 220px;
-  padding: 1.1rem 1.2rem;
+  padding: 0.92rem 1rem;
   border-radius: 20px;
   border: 1px solid rgba(247, 239, 226, 0.12);
   background: rgba(247, 239, 226, 0.1);
   backdrop-filter: blur(12px);
   color: #f7efe2;
-  margin-top: 0.25rem;
+  margin-top: 0.16rem;
 }
 
 .workflow-status-label {
@@ -89,13 +89,13 @@
 .workflow-status-card strong {
   display: block;
   font-family: 'Space Grotesk', 'Manrope', sans-serif;
-  font-size: 1.2rem;
-  margin-bottom: 0.35rem;
+  font-size: 1.08rem;
+  margin-bottom: 0.24rem;
 }
 
 .workflow-status-card p {
   color: rgba(247, 239, 226, 0.72);
-  font-size: 0.9rem;
+  font-size: 0.84rem;
 }
 
 .step-content {
@@ -106,7 +106,7 @@
     var(--mw-card);
   border: 1px solid rgba(215, 204, 185, 0.9);
   border-radius: 28px;
-  padding: 2.2rem;
+  padding: 1.85rem;
   box-shadow: 0 28px 70px rgba(21, 36, 43, 0.12);
   animation: fadeInUp 0.4s ease;
 }
@@ -116,7 +116,7 @@
   justify-content: space-between;
   gap: 1.25rem;
   align-items: start;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.15rem;
 }
 
 .step-header > div:first-child {
@@ -125,13 +125,13 @@
 
 .step-panel-note {
   max-width: 320px;
-  padding: 0.95rem 1rem;
+  padding: 0.8rem 0.9rem;
   border-radius: 18px;
   background: linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(201, 122, 43, 0.12));
   border: 1px solid rgba(15, 118, 110, 0.14);
   color: var(--mw-ink-700);
-  font-size: 0.88rem;
-  line-height: 1.55;
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .step-title {
@@ -140,14 +140,14 @@
   font-weight: 700;
   letter-spacing: -0.04em;
   color: var(--mw-ink-950);
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.24rem;
 }
 
 .step-subtitle {
-  font-size: 0.98rem;
+  font-size: 0.92rem;
   color: var(--mw-ink-700);
   margin-bottom: 0;
-  line-height: 1.6;
+  line-height: 1.48;
   max-width: 62ch;
 }
 
