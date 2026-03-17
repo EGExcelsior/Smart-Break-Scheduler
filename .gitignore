@@ -3,5 +3,4 @@ backend/node_modules/
 .env
 backend/tmp/
 backend/uploads/
-backend/zone-data/~$*.xlsx
 *.log

@@ -26,7 +26,7 @@ if (fs.existsSync(frontendBuildPath)) {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`✅ Break Scheduler V11.0 Backend running on port ${PORT}`);
+  console.log(`✅ Merlin ShiftFlow Backend running on port ${PORT}`);
   console.log(`📁 Zone data folder: zone-data/`);
   console.log(`🕐 Features: Competency-based breaks + Fixed slot breaks + Late arrival coverage`);
 });

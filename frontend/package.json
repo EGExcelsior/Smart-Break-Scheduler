@@ -1,7 +1,7 @@
 {
-  "name": "break-scheduler-frontend",
+  "name": "merlin-shiftflow-frontend",
   "version": "6.5.0",
-  "description": "Break Scheduler V6.5 - Modern React UI",
+  "description": "Merlin ShiftFlow - Modern React UI",
   "private": true,
   "dependencies": {
     "react": "^18.2.0",

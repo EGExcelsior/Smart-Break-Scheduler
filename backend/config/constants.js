@@ -1,4 +1,4 @@
-// ✅ BREAK SCHEDULER CONSTANTS
+// ✅ MERLIN SHIFTFLOW CONSTANTS
 // All configuration values in one place
 
 // ============================================================================

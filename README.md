@@ -1,8 +1,8 @@
-# Break Scheduler
+# Merlin ShiftFlow
 
 **Automated Staff Assignment & Excel Planner Generation**
 
-Modern, efficient break scheduler with horizontal time-based Excel output and beautiful drag & drop UI.
+Modern, efficient workforce scheduler with horizontal time-based Excel output and beautiful drag & drop UI.
 
 ---
 
@@ -375,9 +375,9 @@ background: linear-gradient(135deg, #YOUR_COLOR 0%, #YOUR_COLOR 100%);
 
 ## 📚 Documentation
 
-- **V6.5_IMPLEMENTATION_GUIDE.md** - Complete implementation details
-- **V6.5_UI_PREVIEW.md** - UI mockups and features
-- **DAY_CODE_QUICK_REFERENCE.md** - Day code data reference
+- This README is the primary project documentation.
+- Backend implementation details are in `backend/` route, parser, and service modules.
+- Frontend workflow details are in `frontend/src/components/modernWorkflow/`.
 
 ---
 
@@ -401,13 +401,13 @@ background: linear-gradient(135deg, #YOUR_COLOR 0%, #YOUR_COLOR 100%);
 
 **Developed for:** Chessington World of Adventures  
 **Department:** Rides & Attractions  
-**Version:** 6.5.0  
-**Release Date:** January 25, 2026  
+**Product:** Merlin ShiftFlow  
+**Current Build:** 6.5.0  
 
 **Features:**
 - Excel planner generation (like old LIONS/TIGERS format)
 - Modern drag & drop UI
-- Hard-coded day codes (no upload needed)
+- Zone-driven day codes and staffing requirements
 - Real-time validation
 - Professional output
 
@@ -424,4 +424,4 @@ For issues or questions:
 
 ---
 
-**Enjoy your new Break Scheduler V6.5!** 🎉
+**Enjoy using Merlin ShiftFlow!** 🎉

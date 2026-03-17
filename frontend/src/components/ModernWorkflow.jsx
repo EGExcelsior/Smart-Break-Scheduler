@@ -9,7 +9,7 @@ import StepFiveComplete from './modernWorkflow/StepFiveComplete';
 import useModernWorkflow from './modernWorkflow/useModernWorkflow';
 
 /**
- * Modern Break Scheduler UI - V9.0
+ * Modern Merlin ShiftFlow UI - V9.0
  * 
  * Features:
  * - Zone selection (Central, Left, Right)

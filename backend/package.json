@@ -1,7 +1,7 @@
 {
-  "name": "break-scheduler-backend",
+  "name": "merlin-shiftflow-backend",
   "version": "6.5.0",
-  "description": "Break Scheduler V6.5 - Backend API with Excel planner generation",
+  "description": "Merlin ShiftFlow - Backend API with Excel planner generation",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
