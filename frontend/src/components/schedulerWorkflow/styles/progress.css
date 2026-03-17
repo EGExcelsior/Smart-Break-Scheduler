@@ -70,7 +70,7 @@
 }
 
 .progress-step.active .step-label {
-  color: var(--mw-ink-950);
+  color: #f8f2e8;
 }
 
 .progress-line {
