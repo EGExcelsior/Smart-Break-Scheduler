@@ -2,7 +2,7 @@ const SINGLE_TOGGLE_CATEGORIES = new Set(['Car Parks', 'GHI']);
 
 const UnitsSelector = ({ units, selectedUnits, lockedOpenUnitNames = [], onUnitToggle, onCategoryToggle }) => {
   return (
-    <div className="unit-status-selector">
+    <div className="unit-status-selector" role="list" aria-label="Coverage selection categories">
       {Object.entries(units).map(([category, unitList]) => {
         const isSingleToggleCategory = SINGLE_TOGGLE_CATEGORIES.has(category);
         const allSelected = unitList.every((unit) => selectedUnits.includes(unit.name));
@@ -12,7 +12,7 @@ const UnitsSelector = ({ units, selectedUnits, lockedOpenUnitNames = [], onUnitT
         const hasLockedOpenUnits = unitList.some((unit) => lockedOpenUnitNames.includes(unit.name));
 
         return (
-          <div key={category} className="category-group">
+          <div key={category} className="category-group" role="listitem" aria-label={`${category} category`}>
             <div className="category-header">
               <div className="category-title-block">
                 <p className="category-kicker">Category</p>
@@ -34,6 +34,7 @@ const UnitsSelector = ({ units, selectedUnits, lockedOpenUnitNames = [], onUnitT
                     type="checkbox"
                     checked={allSelected}
                     disabled={hasLockedOpenUnits}
+                    aria-label={`Toggle ${category} category, ${selectedCount} of ${unitList.length} selected`}
                     onChange={(event) => onCategoryToggle(unitList, event.target.checked)}
                   />
                   <div className="checkbox-copy">
@@ -56,6 +57,7 @@ const UnitsSelector = ({ units, selectedUnits, lockedOpenUnitNames = [], onUnitT
                       type="checkbox"
                       checked={selectedUnits.includes(unit.name)}
                       disabled={isLockedOpen}
+                      aria-label={`${unit.name} in ${category}, ${isLockedOpen ? 'always open' : selectedUnits.includes(unit.name) ? 'selected' : 'not selected'}`}
                       onChange={(event) => onUnitToggle(unit.name, event.target.checked)}
                     />
                     <div className="checkbox-copy">

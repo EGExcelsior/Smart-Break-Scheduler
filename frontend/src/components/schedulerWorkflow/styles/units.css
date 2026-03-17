@@ -180,6 +180,17 @@
   margin-top: 0.15rem;
 }
 
+.unit-checkbox input:focus-visible {
+  outline: 3px solid rgba(var(--mw-brand-rgb), 0.38);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.unit-checkbox:has(input:focus-visible) {
+  border-color: rgba(var(--mw-brand-rgb), 0.58);
+  box-shadow: 0 0 0 3px rgba(var(--mw-brand-rgb), 0.16);
+}
+
 .checkbox-copy {
   display: flex;
   flex: 1;
@@ -277,6 +288,11 @@
   background: rgba(241, 233, 220, 0.9);
   transform: translateY(-2px);
   box-shadow: 0 12px 22px rgba(21, 36, 43, 0.08);
+}
+
+.quick-button:focus-visible {
+  outline: 3px solid rgba(var(--mw-brand-rgb), 0.32);
+  outline-offset: 2px;
 }
 
 @media (max-width: 900px) {

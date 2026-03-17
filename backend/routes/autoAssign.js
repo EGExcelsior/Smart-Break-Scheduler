@@ -53,6 +53,47 @@ const { asyncHandler } = require('../middleware/asyncHandler');
 
 const router = express.Router();
 
+const sanitizeFileNameSegment = (value) => {
+  if (!value) {
+    return 'Unknown';
+  }
+
+  return String(value)
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '') || 'Unknown';
+};
+
+const formatDateForFileName = (inputDate) => {
+  if (!inputDate) {
+    return 'Unknown-Date';
+  }
+
+  const rawDate = String(inputDate).trim();
+  const splitBySlashOrDash = rawDate.split(/[/-]/).map((part) => part.trim());
+
+  if (splitBySlashOrDash.length === 3) {
+    const [first, second, third] = splitBySlashOrDash;
+    if (first.length === 4) {
+      return `${third.padStart(2, '0')}-${second.padStart(2, '0')}-${first}`;
+    }
+    if (third.length === 4) {
+      return `${first.padStart(2, '0')}-${second.padStart(2, '0')}-${third}`;
+    }
+  }
+
+  const parsedDate = new Date(rawDate);
+  if (!Number.isNaN(parsedDate.getTime())) {
+    const day = String(parsedDate.getDate()).padStart(2, '0');
+    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+    const year = parsedDate.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+
+  return sanitizeFileNameSegment(rawDate);
+};
+
 router.post('/auto-assign', upload.fields([
   { name: 'skillsMatrix', maxCount: 1 },
   { name: 'timegripCsv', maxCount: 1 }
@@ -733,7 +774,11 @@ router.post('/auto-assign', upload.fields([
     const excelBuffer = await generateExcelPlanner(scheduleData);
     const base64 = excelBuffer.toString('base64');
 
-    const filename = `planner-${zone}-${dayCode}-${date.replace(/\//g, '-')}.xlsx`;
+    const normalizedTeamName = String(teamName || '').replace(/^team\s+/i, '').trim();
+    const teamSegment = sanitizeFileNameSegment(normalizedTeamName);
+    const dayCodeSegment = sanitizeFileNameSegment(dayCode);
+    const dateSegment = formatDateForFileName(date);
+    const filename = `${teamSegment}-Code-${dayCodeSegment}-${dateSegment}.xlsx`;
     console.log(`Generated Excel planner: ${filename} (${staffedRequiredSlots}/${totalNeeded} required positions filled)`);
 
   res.json({
