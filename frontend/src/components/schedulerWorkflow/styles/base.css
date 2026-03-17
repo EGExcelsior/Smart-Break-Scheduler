@@ -26,15 +26,16 @@
 .workflow-shell {
   width: min(1180px, 100%);
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 1rem 0.35rem;
 }
 
 .workflow-intro {
   display: flex;
   justify-content: space-between;
   gap: 1.5rem;
-  align-items: end;
-  margin: 0 auto 1.5rem;
+  align-items: flex-start;
+  margin: 0 auto 1.05rem;
+  padding-top: 0.25rem;
 }
 
 .workflow-kicker,
@@ -49,18 +50,19 @@
 
 .workflow-heading {
   font-family: 'Space Grotesk', 'Manrope', sans-serif;
-  font-size: clamp(1.9rem, 3vw, 3rem);
+  font-size: clamp(1.75rem, 2.6vw, 2.55rem);
   letter-spacing: -0.04em;
-  line-height: 1;
+  line-height: 1.06;
   color: #f7efe2;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.62rem;
+  max-width: 20ch;
 }
 
 .workflow-summary {
-  max-width: 700px;
+  max-width: 640px;
   color: rgba(247, 239, 226, 0.8);
-  line-height: 1.7;
-  font-size: 0.98rem;
+  line-height: 1.62;
+  font-size: 0.96rem;
 }
 
 .workflow-status-card {
@@ -68,9 +70,10 @@
   padding: 1.1rem 1.2rem;
   border-radius: 20px;
   border: 1px solid rgba(247, 239, 226, 0.12);
-  background: rgba(247, 239, 226, 0.08);
+  background: rgba(247, 239, 226, 0.1);
   backdrop-filter: blur(12px);
   color: #f7efe2;
+  margin-top: 0.25rem;
 }
 
 .workflow-status-label {
