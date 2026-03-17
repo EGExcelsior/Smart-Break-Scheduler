@@ -138,7 +138,7 @@ function getUnitsWithStatus(zoneFilePath, date, dayCode) {
   return result;
 }
 
-function getAllParkUnits(zoneFiles) {
+function getAllParkUnits(zoneFiles = {}) {
   console.log('\n🌐 Loading park-wide unit status...');
 
   const allUnits = {

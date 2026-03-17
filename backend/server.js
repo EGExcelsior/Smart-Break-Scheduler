@@ -1223,7 +1223,7 @@ assignments.forEach(assignment => {
 // BUG #15: GET PARK-WIDE UNITS
 // ============================================================================
 
-const parkWideUnits = getAllParkUnits();
+const parkWideUnits = getAllParkUnits(ZONE_FILES);
 
 // ============================================================================
 // BUG #15: CREATE SCHEDULE DATA WITH PARK-WIDE UNITS
