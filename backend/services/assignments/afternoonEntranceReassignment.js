@@ -116,6 +116,19 @@ function reassignEntranceStaffAfternoon({
 
   const bjMinStaff = 2;
   const suppliesMinStaff = 2;
+  const suppliesFloorTime = '14:00';
+  const suppliesFloorMinute = timeToMinutes(suppliesFloorTime);
+
+  const countUnitCoverageAtMinute = (unitName, minute) => updatedAssignments.filter((assignment) =>
+    assignment.unit === unitName &&
+    assignment.staff !== 'UNFILLED' &&
+    !assignment.isBreak &&
+    timeToMinutes(assignment.startTime) <= minute &&
+    timeToMinutes(assignment.endTime) > minute
+  ).length;
+
+  const countSuppliesCoverageAtFloor = () => countUnitCoverageAtMinute('Explorer Supplies', suppliesFloorMinute);
+
   const countUnitAfternoonCoverage = (unitName) => updatedAssignments.filter((assignment) =>
     assignment.unit === unitName &&
     assignment.staff !== 'UNFILLED' &&
@@ -175,7 +188,7 @@ function reassignEntranceStaffAfternoon({
     for (const staffAssignment of toReassign) {
       const staffName = staffAssignment.staff;
       const suppliesExists = staffingRequirements.some((requirement) => requirement.unitName === 'Explorer Supplies');
-      const suppliesCurrentCount = countUnitAfternoonCoverage('Explorer Supplies');
+      const suppliesCurrentCount = countSuppliesCoverageAtFloor();
 
       const bjAfternoonStaff = updatedAssignments.filter((assignment) =>
         assignment.unit === "Ben & Jerry's" &&
@@ -191,7 +204,7 @@ function reassignEntranceStaffAfternoon({
 
       if (suppliesExists && suppliesCurrentCount < suppliesMinStaff) {
         targetRetailUnit = 'Explorer Supplies';
-        console.log(`   🎯 ${staffName}: ${entranceUnit} → Explorer Supplies (hard min ${suppliesCurrentCount}/${suppliesMinStaff})`);
+        console.log(`   🎯 ${staffName}: ${entranceUnit} → Explorer Supplies (hard min @${suppliesFloorTime}: ${suppliesCurrentCount}/${suppliesMinStaff})`);
       }
 
       if (!targetRetailUnit && bjNeedsStaff && hasSkillForUnit(staffName, "Ben & Jerry's", skillsData) &&
@@ -204,6 +217,11 @@ function reassignEntranceStaffAfternoon({
           if (!retailReq) {
             continue;
           }
+
+          if (retailUnit === 'Explorer Supplies' && countSuppliesCoverageAtFloor() >= suppliesMinStaff) {
+            continue;
+          }
+
           if ((overflowPerUnit[retailUnit] || 0) >= maxOverflowPerUnit) {
             continue;
           }
@@ -250,8 +268,12 @@ function reassignEntranceStaffAfternoon({
                 return false;
               }
             }
-            const currentUnitCount = updatedAssignments.filter((assignment) => assignment.unit === unit && !assignment.isBreak && assignment.staff !== 'UNFILLED').length;
-            const unitMin = step6UnitMinimums[unit] || 0;
+            const currentUnitCount = unit === 'Explorer Supplies'
+              ? countSuppliesCoverageAtFloor()
+              : updatedAssignments.filter((assignment) => assignment.unit === unit && !assignment.isBreak && assignment.staff !== 'UNFILLED').length;
+            const unitMin = unit === 'Explorer Supplies'
+              ? suppliesMinStaff
+              : (step6UnitMinimums[unit] || 0);
             if (currentUnitCount >= unitMin) {
               return false;
             }
@@ -263,6 +285,9 @@ function reassignEntranceStaffAfternoon({
               const hasUnit = staffingRequirements.some((requirement) => requirement.unitName === unit);
               const belowCap = (overflowPerUnit[unit] || 0) < maxOverflowPerUnit;
               const noSkillRequired = !skillRequiredUnits.includes(unit);
+              if (unit === 'Explorer Supplies' && countSuppliesCoverageAtFloor() >= suppliesMinStaff) {
+                return false;
+              }
               if (unit === 'Sealife') {
                 const sealifeTotal = updatedAssignments.filter((assignment) => assignment.unit === 'Sealife' && !assignment.isBreak && assignment.staff !== 'UNFILLED').length;
                 if (sealifeTotal >= 2) {
