@@ -357,7 +357,11 @@ function createBreakPlanningHelpers({
         continue;
       }
 
-      const minCoverageDuringBreak = ['Sealife', 'Sealife Shop', 'Sea Life'].includes(breakNeeded.unit) ? 1 : 2;
+      const breakStartMinute = timeToMinutes(breakNeeded.startTime);
+      const isExplorerSupplies = breakNeeded.unit === 'Explorer Supplies';
+      const minCoverageDuringBreak = ['Sealife', 'Sealife Shop', 'Sea Life'].includes(breakNeeded.unit)
+        ? 1
+        : (isExplorerSupplies && breakStartMinute < timeToMinutes('14:00') ? 1 : 2);
 
       const staffPresentDuringBreak = assignments.filter((assignment) =>
         assignment.unit === breakNeeded.unit &&
@@ -382,7 +386,7 @@ function createBreakPlanningHelpers({
         continue;
       }
 
-      const breakStart = timeToMinutes(breakNeeded.startTime);
+      const breakStart = breakStartMinute;
       const breakEnd = timeToMinutes(breakNeeded.endTime);
       const category = getCategoryFromUnit(breakNeeded.unit);
 
@@ -741,12 +745,27 @@ function createBreakPlanningHelpers({
         }
       } else {
         const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020;
-        alternateSlot = breakSlots.find((slot) => {
-          if (isEarlyClose && slot.start === '15:00') {
-            return false;
+        if (primaryAssignment.unit === 'Explorer Supplies') {
+          alternateSlot = breakSlots.find((slot) => {
+            const slotMinute = timeToMinutes(slot.start);
+            if (slotMinute < timeToMinutes('12:00') || slotMinute > timeToMinutes('13:00')) {
+              return false;
+            }
+            return slot.assigned.length < slot.capacity;
+          });
+
+          if (!alternateSlot) {
+            alternateSlot = breakSlots[2];
+            console.log(`   🧰 ${staffName}: Explorer Supplies fallback pinned to 13:00`);
           }
-          return slot.assigned.length < slot.capacity;
-        });
+        } else {
+          alternateSlot = breakSlots.find((slot) => {
+            if (isEarlyClose && slot.start === '15:00') {
+              return false;
+            }
+            return slot.assigned.length < slot.capacity;
+          });
+        }
       }
 
       if (alternateSlot) {
