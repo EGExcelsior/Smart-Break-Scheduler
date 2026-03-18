@@ -9,7 +9,49 @@ function reassignEntranceStaffAfternoon({
   console.log('   Analyzing entrance staffing levels post-break...');
 
   const ENTRANCE_UNITS = ['Lodge Entrance', 'Explorer Entrance', 'Schools Entrance'];
-  const AFTERNOON_START = '13:45';
+  const STANDARD_AFTERNOON_START = '13:45';
+  const EARLY_AFTERNOON_START = '12:00';
+
+  const hasTimeOverlap = (startA, endA, startB, endB) => !(endA <= startB || startA >= endB);
+
+  const earlyWindowStart = timeToMinutes(EARLY_AFTERNOON_START);
+  const standardWindowStart = timeToMinutes(STANDARD_AFTERNOON_START);
+
+  const entranceBreakEvents = assignments.filter((assignment) =>
+    assignment.isBreak &&
+    assignment.unit &&
+    assignment.unit.includes('Entrance') &&
+    hasTimeOverlap(
+      timeToMinutes(assignment.startTime),
+      timeToMinutes(assignment.endTime),
+      earlyWindowStart,
+      standardWindowStart
+    )
+  ).length;
+
+  const entranceSmartCoverEvents = assignments.filter((assignment) =>
+    !assignment.isBreak &&
+    assignment.positionType &&
+    assignment.positionType.includes('Smart Break Cover') &&
+    assignment.unit &&
+    assignment.unit.includes('Entrance') &&
+    hasTimeOverlap(
+      timeToMinutes(assignment.startTime),
+      timeToMinutes(assignment.endTime),
+      earlyWindowStart,
+      standardWindowStart
+    )
+  ).length;
+
+  const lowMiddayBreakPressure =
+    entranceBreakEvents === 0 || entranceSmartCoverEvents <= Math.ceil(entranceBreakEvents * 0.2);
+
+  const AFTERNOON_START = lowMiddayBreakPressure ? EARLY_AFTERNOON_START : STANDARD_AFTERNOON_START;
+
+  console.log(
+    `   ⏱️  Entrance downshift starts at ${AFTERNOON_START} ` +
+    `(entrance breaks ${entranceBreakEvents}, smart cover ${entranceSmartCoverEvents})`
+  );
 
   const availableEntrances = ENTRANCE_UNITS.filter((unit) =>
     staffingRequirements.some((requirement) => requirement.unitName === unit)
