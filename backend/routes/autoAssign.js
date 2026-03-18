@@ -46,6 +46,7 @@ const {
   getClosedDaysStatus,
   getAllParkUnits
 } = require('../services/utilities/zoneUnitStatusService');
+const { buildAssignmentInsights } = require('../services/utilities/assignmentInsights');
 const { detectBriefingStaff } = require('../utils/assignmentMeta');
 const { getSpecificUnitFromFunction } = require('../utils/plannedFunctionMapper');
 const { upload } = require('../middleware/upload');
@@ -781,6 +782,16 @@ router.post('/auto-assign', upload.fields([
     const excelBuffer = await generateExcelPlanner(scheduleData);
     const base64 = excelBuffer.toString('base64');
 
+    const insights = buildAssignmentInsights({
+      assignments,
+      staffingRequirements,
+      zone,
+      dayCode,
+      assignedCount: staffedRequiredSlots,
+      totalRequired: totalNeeded,
+      timeToMinutes
+    });
+
     const normalizedTeamName = String(teamName || '').replace(/^team\s+/i, '').trim();
     const teamSegment = sanitizeFileNameSegment(normalizedTeamName);
     const dayCodeSegment = sanitizeFileNameSegment(dayCode);
@@ -793,6 +804,7 @@ router.post('/auto-assign', upload.fields([
     assigned: staffedRequiredSlots,
     total: totalNeeded,
     fillRate: totalNeeded > 0 ? Math.round((staffedRequiredSlots / totalNeeded) * 100) : 0,
+    insights,
     assignments,
     alerts: timegripData.alerts || null,
     excelFile: base64,

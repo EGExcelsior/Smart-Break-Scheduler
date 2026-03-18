@@ -94,6 +94,42 @@
   padding: 7px 10px;
 }
 
+.assignment-warning-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.assignment-warning-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.48rem;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 122, 43, 0.28);
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--mw-ink-700);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1.1;
+}
+
+.assignment-warning-chip--high {
+  background: rgba(var(--mw-brand-rgb), 0.14);
+  border-color: rgba(var(--mw-brand-rgb), 0.34);
+  color: var(--mw-ink-950);
+}
+
+.assignment-warning-chip--medium {
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.assignment-warning-message {
+  display: block;
+}
+
 .warning-checkbox-row {
   display: flex;
   align-items: flex-start;
