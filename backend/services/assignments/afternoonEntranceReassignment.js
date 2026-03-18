@@ -118,6 +118,9 @@ function reassignEntranceStaffAfternoon({
   const suppliesMinStaff = 2;
   const suppliesFloorTime = '14:00';
   const suppliesFloorMinute = timeToMinutes(suppliesFloorTime);
+  const step6UnitMaximums = {
+    'Sweet Shop': 3
+  };
 
   const countUnitCoverageAtMinute = (unitName, minute) => updatedAssignments.filter((assignment) =>
     assignment.unit === unitName &&
@@ -136,6 +139,21 @@ function reassignEntranceStaffAfternoon({
     timeToMinutes(assignment.startTime) <= timeToMinutes(AFTERNOON_START) &&
     timeToMinutes(assignment.endTime) > timeToMinutes(AFTERNOON_START)
   ).length;
+
+  const getStep6UnitCoverageCount = (unitName) => {
+    if (unitName === 'Explorer Supplies') {
+      return countSuppliesCoverageAtFloor();
+    }
+    return countUnitAfternoonCoverage(unitName);
+  };
+
+  const canAcceptStep6Reassignment = (unitName) => {
+    const maxAllowed = step6UnitMaximums[unitName];
+    if (!maxAllowed) {
+      return true;
+    }
+    return getStep6UnitCoverageCount(unitName) < maxAllowed;
+  };
 
   const retailPriority = [
     "Ben & Jerry's",
@@ -218,6 +236,10 @@ function reassignEntranceStaffAfternoon({
             continue;
           }
 
+          if (!canAcceptStep6Reassignment(retailUnit)) {
+            continue;
+          }
+
           if (retailUnit === 'Explorer Supplies' && countSuppliesCoverageAtFloor() >= suppliesMinStaff) {
             continue;
           }
@@ -262,6 +284,9 @@ function reassignEntranceStaffAfternoon({
             const hasUnit = staffingRequirements.some((requirement) => requirement.unitName === unit);
             const belowCap = (overflowPerUnit[unit] || 0) < maxOverflowPerUnit;
             const noSkillRequired = !skillRequiredUnits.includes(unit);
+            if (!canAcceptStep6Reassignment(unit)) {
+              return false;
+            }
             if (unit === 'Sealife') {
               const sealifeTotal = updatedAssignments.filter((assignment) => assignment.unit === 'Sealife' && !assignment.isBreak && assignment.staff !== 'UNFILLED').length;
               if (sealifeTotal >= 2) {
@@ -285,6 +310,9 @@ function reassignEntranceStaffAfternoon({
               const hasUnit = staffingRequirements.some((requirement) => requirement.unitName === unit);
               const belowCap = (overflowPerUnit[unit] || 0) < maxOverflowPerUnit;
               const noSkillRequired = !skillRequiredUnits.includes(unit);
+              if (!canAcceptStep6Reassignment(unit)) {
+                return false;
+              }
               if (unit === 'Explorer Supplies' && countSuppliesCoverageAtFloor() >= suppliesMinStaff) {
                 return false;
               }

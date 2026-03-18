@@ -494,6 +494,23 @@ function createBreakPlanningHelpers({
       { start: '15:00', end: '15:30', capacity: Math.max(slotsPerTime, 2), assigned: [], label: 'Latest' }
     ];
 
+    const getUnitCoverageAtSlot = (unitName, slotStart, breakDurationMinutes) => {
+      const slotStartMinutes = timeToMinutes(slotStart);
+      const slotEndMinutes = slotStartMinutes + breakDurationMinutes;
+
+      return assignmentsToProcess.filter((assignment) =>
+        assignment.unit === unitName &&
+        !assignment.isBreak &&
+        !assignment.isBreakCover &&
+        assignment.staff !== 'UNFILLED' &&
+        timeToMinutes(assignment.startTime) <= slotStartMinutes &&
+        timeToMinutes(assignment.endTime) >= slotEndMinutes
+      ).length;
+    };
+
+    const getUnitBreaksInSlot = (unitName, slotStart) =>
+      breakAssignments.filter((assignment) => assignment.unit === unitName && assignment.startTime === slotStart).length;
+
     console.log(`   📊 Creating break slots for ${nonRidesStaffCount} non-rides staff (${slotsPerTime} per time slot)`);
 
     const ridesBreaksToAssign = [];
@@ -551,26 +568,22 @@ function createBreakPlanningHelpers({
         continue;
       } else {
         const unitForCheck = primaryAssignment.unit;
-        const unitTotal = assignmentsToProcess.filter((assignment) => assignment.unit === unitForCheck && !assignment.isBreakCover && !assignment.isBreak).length;
-        const isTwoPersonUnit = unitTotal <= 2;
+        const breakDuration = actualBreakMinutes || 30;
+        const unitCoverageAtTarget = getUnitCoverageAtSlot(unitForCheck, targetSlot.start, breakDuration);
+        const isLowCoverageUnit = unitCoverageAtTarget <= 2;
 
-        if (isTwoPersonUnit) {
-          const sameUnitInSlot = targetSlot.assigned.filter((assignedStaffName) => {
-            const assignment = assignmentsToProcess.find((candidate) => candidate.staff === assignedStaffName);
-            return assignment && assignment.unit === unitForCheck;
-          }).length;
+        if (isLowCoverageUnit) {
+          const sameUnitInSlot = getUnitBreaksInSlot(unitForCheck, targetSlot.start);
 
           if (sameUnitInSlot > 0) {
             const currentIndex = breakSlots.findIndex((slot) => slot.start === targetSlot.start);
             for (let index = currentIndex + 1; index < breakSlots.length; index++) {
               const nextSlot = breakSlots[index];
-              const sameUnitNext = nextSlot.assigned.filter((assignedStaffName) => {
-                const assignment = assignmentsToProcess.find((candidate) => candidate.staff === assignedStaffName);
-                return assignment && assignment.unit === unitForCheck;
-              }).length;
+              const sameUnitNext = getUnitBreaksInSlot(unitForCheck, nextSlot.start);
+              const coverageAtNext = getUnitCoverageAtSlot(unitForCheck, nextSlot.start, breakDuration);
 
-              if (sameUnitNext === 0) {
-                console.log(`   🏪 ${staffName}: 2-person unit stagger (${unitForCheck}), moving ${targetSlot.start} → ${nextSlot.start}`);
+              if (sameUnitNext === 0 && coverageAtNext >= 1) {
+                console.log(`   🏪 ${staffName}: low-coverage unit stagger (${unitForCheck}), moving ${targetSlot.start} → ${nextSlot.start}`);
                 targetSlot = nextSlot;
                 break;
               }
@@ -727,6 +740,9 @@ function createBreakPlanningHelpers({
 
       const isSeniorHostOverflow = primaryAssignment.position && primaryAssignment.position.includes('Senior Host');
       let alternateSlot;
+      const primaryUnit = primaryAssignment.unit;
+      const primaryBreakDuration = actualBreakMinutes || 30;
+      const isPrimaryLowCoverageUnit = getUnitCoverageAtSlot(primaryUnit, targetSlot.start, primaryBreakDuration) <= 2;
 
       if (isSeniorHostOverflow) {
         const isEarlyClose = primaryAssignment.endTime && timeToMinutes(primaryAssignment.endTime) <= 1020;
@@ -735,6 +751,9 @@ function createBreakPlanningHelpers({
             return false;
           }
           if (isEarlyClose && slot.start === '15:00') {
+            return false;
+          }
+          if (isPrimaryLowCoverageUnit && getUnitBreaksInSlot(primaryUnit, slot.start) > 0) {
             return false;
           }
           return slot.assigned.length < slot.capacity;
@@ -751,6 +770,9 @@ function createBreakPlanningHelpers({
             if (slotMinute < timeToMinutes('12:00') || slotMinute > timeToMinutes('13:00')) {
               return false;
             }
+            if (isPrimaryLowCoverageUnit && getUnitBreaksInSlot(primaryUnit, slot.start) > 0) {
+              return false;
+            }
             return slot.assigned.length < slot.capacity;
           });
 
@@ -761,6 +783,9 @@ function createBreakPlanningHelpers({
         } else {
           alternateSlot = breakSlots.find((slot) => {
             if (isEarlyClose && slot.start === '15:00') {
+              return false;
+            }
+            if (isPrimaryLowCoverageUnit && getUnitBreaksInSlot(primaryUnit, slot.start) > 0) {
               return false;
             }
             return slot.assigned.length < slot.capacity;
