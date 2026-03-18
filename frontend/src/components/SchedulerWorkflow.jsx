@@ -62,6 +62,8 @@ const SchedulerWorkflow = () => {
       handleResetDefaults,
       handleParseAnalyze,
       handleAutoAssign,
+      handleRunAbsenceScenario,
+      handleFinalizeAssignmentReview,
       handleToggleIncludedAbsentStaff,
       resetWorkflow
     }
@@ -124,7 +126,13 @@ const SchedulerWorkflow = () => {
         )}
 
         {currentStep === 4 && assignmentResult && (
-          <AssignmentReview assignmentResult={assignmentResult} onBack={() => setCurrentStep(3)} />
+          <AssignmentReview
+            assignmentResult={assignmentResult}
+            loading={loading}
+            onBack={() => setCurrentStep(3)}
+            onRunScenario={handleRunAbsenceScenario}
+            onFinalize={handleFinalizeAssignmentReview}
+          />
         )}
 
         {currentStep === 5 && (

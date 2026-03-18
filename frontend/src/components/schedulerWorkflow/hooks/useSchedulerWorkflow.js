@@ -34,6 +34,28 @@ const enforceLockedOpenUnits = (selectedUnitNames, unitsByCategory) => {
   return Array.from(new Set([...(selectedUnitNames || []), ...lockedOpenUnitNames]));
 };
 
+const parseForcedAbsentNames = (rawInput) => {
+  if (Array.isArray(rawInput)) {
+    return rawInput.map((value) => String(value || '').trim()).filter(Boolean);
+  }
+
+  const text = String(rawInput || '').trim();
+  if (!text) {
+    return [];
+  }
+
+  const normalized = text
+    .replace(/\bis\s+sick\b/gi, '')
+    .replace(/\bsick\b/gi, '')
+    .replace(/\boff\s+today\b/gi, '')
+    .replace(/[.]/g, ' ');
+
+  return normalized
+    .split(/[\n,;]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+};
+
 const useSchedulerWorkflow = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [files, setFiles] = useState({
@@ -224,12 +246,49 @@ const useSchedulerWorkflow = () => {
 
       const fillRate = data.total > 0 ? `${Math.round((data.assigned / data.total) * 100)}%` : '0%';
       setAssignmentResult({ ...data, fillRate });
-      setCurrentStep(5);
+      setCurrentStep(4);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRunAbsenceScenario = async (scenarioInput) => {
+    const forcedAbsentStaff = parseForcedAbsentNames(scenarioInput);
+    if (forcedAbsentStaff.length === 0) {
+      setError('Enter at least one staff name for scenario testing.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const formData = createBaseFormData({ files, teamName, zone, date, dayCode });
+      formData.append('selectedUnits', JSON.stringify(selectedUnits));
+      formData.append('includeAbsentStaff', JSON.stringify(includedAbsentStaff));
+      formData.append('forceAbsentStaff', JSON.stringify(forcedAbsentStaff));
+      formData.append('baselineAssignments', JSON.stringify(assignmentResult?.assignments || []));
+
+      const data = await autoAssign(formData);
+      const fillRate = data.total > 0 ? `${Math.round((data.assigned / data.total) * 100)}%` : '0%';
+
+      setAssignmentResult({
+        ...data,
+        fillRate,
+        scenarioInput: forcedAbsentStaff.join(', ')
+      });
+      setCurrentStep(4);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFinalizeAssignmentReview = () => {
+    setCurrentStep(5);
   };
 
   const resetWorkflow = () => {
@@ -305,6 +364,8 @@ const useSchedulerWorkflow = () => {
       handleResetDefaults,
       handleParseAnalyze,
       handleAutoAssign,
+      handleRunAbsenceScenario,
+      handleFinalizeAssignmentReview,
       handleToggleIncludedAbsentStaff,
       resetWorkflow
     }

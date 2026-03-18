@@ -11,7 +11,8 @@ function createEmptyAlerts() {
   return {
     absenceWithShift: [],
     absenceIncludedByOverride: [],
-    absentStaffSkipped: []
+    absentStaffSkipped: [],
+    forcedAbsenceRemoved: []
   };
 }
 
@@ -33,7 +34,8 @@ function buildParseResult(workingStaff, staffByFunction, alerts = createEmptyAle
       ...alerts,
       absenceWithShiftCount: alerts.absenceWithShift.length,
       absenceIncludedByOverrideCount: alerts.absenceIncludedByOverride.length,
-      absentStaffSkippedCount: alerts.absentStaffSkipped.length
+      absentStaffSkippedCount: alerts.absentStaffSkipped.length,
+      forcedAbsenceRemovedCount: alerts.forcedAbsenceRemoved.length
     }
   };
 }
@@ -42,6 +44,7 @@ async function parseTimegripCsv(filePath, targetTeam, targetDate = null, options
   const content = await fs.readFile(filePath, 'utf-8');
   const lines = content.split('\n');
   const includeAbsentStaffNames = new Set((options.includeAbsentStaffNames || []).map(normalizeNameKey));
+  const forcedAbsentStaffNames = new Set((options.forcedAbsentStaffNames || []).map(normalizeNameKey));
   
   // Convert target date
   let searchDate = targetDate;
@@ -55,7 +58,7 @@ async function parseTimegripCsv(filePath, targetTeam, targetDate = null, options
   console.log(`🔍 Looking for staff working on: ${searchDate || 'any date'}`);
   
   // TRY TABULAR FORMAT
-  const tabularResult = parseTabularCsv(lines, searchDate, { includeAbsentStaffNames });
+  const tabularResult = parseTabularCsv(lines, searchDate, { includeAbsentStaffNames, forcedAbsentStaffNames });
   
   if (tabularResult.workingStaff.length > 0) {
     console.log(`\n✅ TABULAR format SUCCESS! Found ${tabularResult.workingStaff.length} staff\n`);
@@ -63,7 +66,7 @@ async function parseTimegripCsv(filePath, targetTeam, targetDate = null, options
   }
   
   console.log('⚠️  Tabular format not detected, trying WorkPlan format...');
-  const workplanResult = parseWorkplanFormat(lines, searchDate);
+  const workplanResult = parseWorkplanFormat(lines, searchDate, { forcedAbsentStaffNames });
   
   console.log(`\n✅ Found ${workplanResult.workingStaff.length} staff with schedules from TimeGrip\n`);
   return workplanResult;
@@ -71,6 +74,7 @@ async function parseTimegripCsv(filePath, targetTeam, targetDate = null, options
 
 function parseTabularCsv(lines, searchDate, options = {}) {
   const includeAbsentStaffNames = options.includeAbsentStaffNames || new Set();
+  const forcedAbsentStaffNames = options.forcedAbsentStaffNames || new Set();
   const emptyStaffByFunction = createEmptyStaffByFunction();
   // Find header row
   let headerIndex = -1;
@@ -120,10 +124,23 @@ function parseTabularCsv(lines, searchDate, options = {}) {
     const plannedFunction = plannedFunctionIndex >= 0 ? cols[plannedFunctionIndex] : '';
     const absenceCode = absenceCodeIndex >= 0 ? cols[absenceCodeIndex] : '0';
     const absenceReason = absenceReasonIndex >= 0 ? cols[absenceReasonIndex] : '';
+    const normalizedName = normalizeNameKey(name);
     
     // Check date match
     const dateMatches = !searchDate || date === searchDate || date.includes(searchDate);
     if (!dateMatches) continue;
+
+    if (forcedAbsentStaffNames.has(normalizedName)) {
+      alerts.forcedAbsenceRemoved.push({
+        name,
+        date,
+        startTime,
+        endTime,
+        plannedFunction: plannedFunction ? plannedFunction.trim() : ''
+      });
+      console.log(`  🚫 ${name}: FORCED ABSENCE (scenario) - SKIPPED`);
+      continue;
+    }
     
     // ✅ NEW: Filter out staff with absences (Holiday, Sick, etc.)
     // Absence codes: 0 = Working, 32 = Holiday, others = various absences
@@ -205,7 +222,8 @@ function parseTabularCsv(lines, searchDate, options = {}) {
   return buildParseResult(workingStaff, staffByFunction, alerts);
 }
 
-function parseWorkplanFormat(lines, searchDate) {
+function parseWorkplanFormat(lines, searchDate, options = {}) {
+  const forcedAbsentStaffNames = options.forcedAbsentStaffNames || new Set();
   const workingStaff = [];
   const alerts = createEmptyAlerts();
   const staffByFunction = createEmptyStaffByFunction();
@@ -262,6 +280,20 @@ function parseWorkplanFormat(lines, searchDate) {
               team: '',
               plannedFunction: ''  // ✅ FIX: Use plannedFunction field
             };
+
+            if (forcedAbsentStaffNames.has(normalizeNameKey(currentStaff))) {
+              alerts.forcedAbsenceRemoved.push({
+                name: currentStaff,
+                date: searchDate,
+                startTime,
+                endTime,
+                plannedFunction: ''
+              });
+              console.log(`  🚫 ${currentStaff}: FORCED ABSENCE (scenario) - SKIPPED`);
+              inScheduleSection = false;
+              currentStaff = null;
+              break;
+            }
             
             workingStaff.push(staffRecord);
             // Default to SPECIFIC for WorkPlan format

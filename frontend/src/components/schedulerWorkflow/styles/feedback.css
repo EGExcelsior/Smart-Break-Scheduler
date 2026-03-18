@@ -278,6 +278,76 @@
   align-items: stretch;
 }
 
+.scenario-simulator-panel {
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(var(--mw-brand-rgb), 0.24);
+  background: linear-gradient(135deg, rgba(255, 253, 248, 0.95), rgba(229, 246, 241, 0.86));
+}
+
+.scenario-simulator-header h3 {
+  margin: 0;
+  color: var(--mw-ink-950);
+  font-family: 'Space Grotesk', 'Manrope', sans-serif;
+  font-size: 1.02rem;
+}
+
+.scenario-simulator-header p {
+  margin: 0.35rem 0 0;
+  color: var(--mw-ink-700);
+  font-size: 0.9rem;
+}
+
+.scenario-simulator-row {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.scenario-simulator-input {
+  flex: 1;
+  min-width: 240px;
+  border: 1px solid rgba(var(--mw-brand-rgb), 0.24);
+  border-radius: 12px;
+  padding: 0.62rem 0.72rem;
+  font-size: 0.9rem;
+  color: var(--mw-ink-900);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.scenario-simulator-input:focus {
+  outline: none;
+  border-color: rgba(var(--mw-brand-rgb), 0.42);
+  box-shadow: 0 0 0 3px rgba(var(--mw-brand-rgb), 0.12);
+}
+
+.scenario-simulator-summary {
+  margin-top: 0.85rem;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(var(--mw-brand-rgb), 0.18);
+  border-radius: 12px;
+  padding: 0.72rem 0.82rem;
+}
+
+.scenario-simulator-title {
+  margin: 0;
+  color: var(--mw-ink-950);
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.scenario-simulator-text {
+  margin: 0.3rem 0 0;
+  color: var(--mw-ink-700);
+  font-size: 0.86rem;
+}
+
+.scenario-delta-list {
+  margin-top: 0.6rem;
+}
+
 .success-message {
   text-align: center;
   padding: 2.2rem;

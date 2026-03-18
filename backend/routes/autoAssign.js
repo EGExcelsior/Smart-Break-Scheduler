@@ -47,6 +47,7 @@ const {
   getAllParkUnits
 } = require('../services/utilities/zoneUnitStatusService');
 const { buildAssignmentInsights } = require('../services/utilities/assignmentInsights');
+const { buildScenarioDelta } = require('../services/utilities/scenarioDelta');
 const { detectBriefingStaff } = require('../utils/assignmentMeta');
 const { getSpecificUnitFromFunction } = require('../utils/plannedFunctionMapper');
 const { upload } = require('../middleware/upload');
@@ -99,7 +100,16 @@ router.post('/auto-assign', upload.fields([
   { name: 'skillsMatrix', maxCount: 1 },
   { name: 'timegripCsv', maxCount: 1 }
 ]), asyncHandler(async (req, res) => {
-  const { teamName, zone, dayCode, date, selectedUnits, includeAbsentStaff } = req.body;
+  const {
+    teamName,
+    zone,
+    dayCode,
+    date,
+    selectedUnits,
+    includeAbsentStaff,
+    forceAbsentStaff,
+    baselineAssignments
+  } = req.body;
 
     if (!req.files['skillsMatrix'] || !req.files['timegripCsv']) {
       return res.status(400).json({ error: 'Missing required files' });
@@ -122,8 +132,33 @@ router.post('/auto-assign', upload.fields([
       }
     }
 
+    let forcedAbsentStaffNames = [];
+    if (forceAbsentStaff) {
+      try {
+        const parsedForced = JSON.parse(forceAbsentStaff);
+        if (Array.isArray(parsedForced)) {
+          forcedAbsentStaffNames = parsedForced.filter(Boolean);
+        }
+      } catch (parseError) {
+        console.warn('⚠️ Invalid forceAbsentStaff payload, ignoring forced absences');
+      }
+    }
+
+    let baselineAssignmentsParsed = [];
+    if (baselineAssignments) {
+      try {
+        const parsedBaseline = JSON.parse(baselineAssignments);
+        if (Array.isArray(parsedBaseline)) {
+          baselineAssignmentsParsed = parsedBaseline;
+        }
+      } catch (parseError) {
+        console.warn('⚠️ Invalid baselineAssignments payload, skipping scenario delta');
+      }
+    }
+
     const timegripData = await parseTimegripCsv(timegripFile, teamName, date, {
-      includeAbsentStaffNames
+      includeAbsentStaffNames,
+      forcedAbsentStaffNames
     });
 
     const zoneFilePath = ZONE_FILES[zone];
@@ -792,6 +827,13 @@ router.post('/auto-assign', upload.fields([
       timeToMinutes
     });
 
+    const scenarioDelta = buildScenarioDelta({
+      baselineAssignments: baselineAssignmentsParsed,
+      currentAssignments: assignments,
+      forcedAbsentStaff: forcedAbsentStaffNames,
+      timeToMinutes
+    });
+
     const normalizedTeamName = String(teamName || '').replace(/^team\s+/i, '').trim();
     const teamSegment = sanitizeFileNameSegment(normalizedTeamName);
     const dayCodeSegment = sanitizeFileNameSegment(dayCode);
@@ -805,6 +847,11 @@ router.post('/auto-assign', upload.fields([
     total: totalNeeded,
     fillRate: totalNeeded > 0 ? Math.round((staffedRequiredSlots / totalNeeded) * 100) : 0,
     insights,
+    scenario: {
+      forcedAbsentStaff: forcedAbsentStaffNames,
+      forcedAbsentRemovedCount: (timegripData.alerts && timegripData.alerts.forcedAbsenceRemovedCount) || 0
+    },
+    scenarioDelta,
     assignments,
     alerts: timegripData.alerts || null,
     excelFile: base64,
