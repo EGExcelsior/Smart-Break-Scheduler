@@ -1,4 +1,4 @@
-const SINGLE_TOGGLE_CATEGORIES = new Set(['Car Parks', 'GHI']);
+const SINGLE_TOGGLE_CATEGORIES = new Set();
 
 const UnitsSelector = ({ units, selectedUnits, lockedOpenUnitNames = [], onUnitToggle, onCategoryToggle }) => {
   return (
