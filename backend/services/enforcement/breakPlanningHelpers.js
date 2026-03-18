@@ -511,9 +511,9 @@ function createBreakPlanningHelpers({
       const isLateStarter = shiftStartMin >= 660;
       const isMidStarter = !isEarlyStarter && !isLateStarter;
 
-      if (primaryAssignment.unit === 'Azteca Entrance' && isEarlyStarter) {
-        targetSlot = breakSlots[0];
-        console.log(`   🏛️  ${staffName}: Azteca Entrance → forced 11:00 break`);
+      if (primaryAssignment.unit === 'Azteca Entrance' && timeToMinutes(shiftEnd) <= timeToMinutes('11:00')) {
+        console.log(`   ⏭️  ${staffName}: Azteca shift ends ${shiftEnd} (no valid break window after closure)`);
+        continue;
       } else {
         const unitForCheck = primaryAssignment.unit;
         const unitTotal = assignmentsToProcess.filter((assignment) => assignment.unit === unitForCheck && !assignment.isBreakCover && !assignment.isBreak).length;
@@ -637,6 +637,7 @@ function createBreakPlanningHelpers({
           targetSlot = safeSlot;
         } else {
           console.log(`   ⚠️  ${staffName}: No safe break slot found before shift end (${shiftEnd})`);
+          continue;
         }
       }
 

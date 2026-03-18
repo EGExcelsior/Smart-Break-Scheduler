@@ -28,7 +28,9 @@ function normalizeRideName(name) {
   if (!name) return '';
   return name
     .toLowerCase()
+    .replace(/&/g, 'and')
     .replace(/'/g, '')
+    .replace(/[^a-z0-9]+/g, '')
     .replace(/\s+/g, '')
     .trim();
 }
@@ -153,7 +155,9 @@ function hasSkillForUnit(staffName, targetUnit, skillsData) {
 
   const unitSkillMap = {
     'Lodge Entrance': 'Admissions', 'Azteca Entrance': 'Admissions', 'Explorer Entrance': 'Admissions', 'Schools Entrance': 'Admissions',
-    'Adventures Point Gift Shop': 'Adventure Point Gift Shop', 'Sweet Shop': 'Sweet Shop', 'Sealife': 'Sea Life', 'Lorikeets': 'Retail',
+    'Adventure Point Gift Shop': 'Adventure Point Gift Shop',
+    'Adventures Point Gift Shop': 'Adventure Point Gift Shop',
+    'Sweet Shop': 'Sweet Shop', 'Sealife': 'Sea Life', 'Sealife Shop': 'Sea Life', 'Lorikeets': 'Retail',
     'Car Parks - Staff Car Park': 'Car Parks', 'Car Parks - Hotel Car Park': 'Car Parks', 'Car Parks - Express': 'Car Parks',
     'Car Parks - Split': 'Car Parks', 'Car Parks - Flamingo': 'Car Parks', 'Car Parks - Giraffe': 'Car Parks', 'Car Parks - Gorilla': 'Car Parks',
     "Ben & Jerry's": "Ben & Jerry's",
@@ -163,10 +167,13 @@ function hasSkillForUnit(staffName, targetUnit, skillsData) {
   const requiredSkill = unitSkillMap[canonicalTargetUnit];
   if (!requiredSkill) return false;
 
+  const normalizedRequired = normalizeRideName(requiredSkill);
+
   return (staff.greenUnits || []).some(skill => {
     if (!skill) return false;
     const skillStr = typeof skill === 'string' ? skill : (skill.fullSkill || '');
-    return skillStr.toLowerCase().includes(requiredSkill.toLowerCase());
+    const normalizedSkill = normalizeRideName(skillStr);
+    return normalizedSkill.includes(normalizedRequired);
   });
 }
 
