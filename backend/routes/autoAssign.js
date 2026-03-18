@@ -741,12 +741,16 @@ router.post('/auto-assign', upload.fields([
     }
 
     console.log('🎙️ Detecting briefing attendees...');
-    const briefingStaff = detectBriefingStaff(assignments);
-    console.log(`   ✅ ${briefingStaff.size} staff attending 09:15 briefing\n`);
+    const briefingTimesByStaff = detectBriefingStaff(assignments);
+    const briefing915 = Array.from(briefingTimesByStaff.values()).filter((time) => time === '09:15').length;
+    const briefing1100 = Array.from(briefingTimesByStaff.values()).filter((time) => time === '11:00').length;
+    console.log(`   ✅ ${briefingTimesByStaff.size} total briefing attendees (09:15=${briefing915}, 11:00=${briefing1100})\n`);
 
     assignments.forEach(assignment => {
-      if (briefingStaff.has(assignment.staff) && assignment.startTime === '09:15') {
+      const briefingTime = briefingTimesByStaff.get(assignment.staff);
+      if (briefingTime && assignment.startTime === briefingTime) {
         assignment.hasBriefing = true;
+        assignment.briefingTime = briefingTime;
       }
     });
 

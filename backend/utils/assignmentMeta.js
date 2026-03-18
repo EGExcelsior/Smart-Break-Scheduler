@@ -1,13 +1,18 @@
 function detectBriefingStaff(assignments = []) {
-  const briefingAttendees = new Set();
+  const briefingTimesByStaff = new Map();
+  const briefingStartTimes = new Set(['09:15', '11:00']);
 
   for (const assignment of assignments) {
-    if (assignment.startTime === '09:15') {
-      briefingAttendees.add(assignment.staff);
+    if (!assignment || !assignment.staff) {
+      continue;
+    }
+
+    if (briefingStartTimes.has(assignment.startTime) && !briefingTimesByStaff.has(assignment.staff)) {
+      briefingTimesByStaff.set(assignment.staff, assignment.startTime);
     }
   }
 
-  return briefingAttendees;
+  return briefingTimesByStaff;
 }
 
 module.exports = {
