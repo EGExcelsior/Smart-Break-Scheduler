@@ -115,12 +115,21 @@ function reassignEntranceStaffAfternoon({
   console.log(`   🎯 Afternoon targets: ${Object.entries(afternoonTargets).map(([unit, count]) => `${unit.replace(' Entrance', '')}=${count}`).join(', ')}`);
 
   const bjMinStaff = 2;
+  const suppliesMinStaff = 2;
+  const countUnitAfternoonCoverage = (unitName) => updatedAssignments.filter((assignment) =>
+    assignment.unit === unitName &&
+    assignment.staff !== 'UNFILLED' &&
+    !assignment.isBreak &&
+    timeToMinutes(assignment.startTime) <= timeToMinutes(AFTERNOON_START) &&
+    timeToMinutes(assignment.endTime) > timeToMinutes(AFTERNOON_START)
+  ).length;
+
   const retailPriority = [
     "Ben & Jerry's",
+    'Explorer Supplies',
     'Sweet Shop',
     'Adventure Point Gift Shop',
     'Sealife',
-    'Explorer Supplies',
     "Ben & Jerry's Kiosk",
     'Lorikeets'
   ];
@@ -165,6 +174,8 @@ function reassignEntranceStaffAfternoon({
 
     for (const staffAssignment of toReassign) {
       const staffName = staffAssignment.staff;
+      const suppliesExists = staffingRequirements.some((requirement) => requirement.unitName === 'Explorer Supplies');
+      const suppliesCurrentCount = countUnitAfternoonCoverage('Explorer Supplies');
 
       const bjAfternoonStaff = updatedAssignments.filter((assignment) =>
         assignment.unit === "Ben & Jerry's" &&
@@ -178,11 +189,16 @@ function reassignEntranceStaffAfternoon({
 
       let targetRetailUnit = null;
 
-      if (bjNeedsStaff && hasSkillForUnit(staffName, "Ben & Jerry's", skillsData) &&
+      if (suppliesExists && suppliesCurrentCount < suppliesMinStaff) {
+        targetRetailUnit = 'Explorer Supplies';
+        console.log(`   🎯 ${staffName}: ${entranceUnit} → Explorer Supplies (hard min ${suppliesCurrentCount}/${suppliesMinStaff})`);
+      }
+
+      if (!targetRetailUnit && bjNeedsStaff && hasSkillForUnit(staffName, "Ben & Jerry's", skillsData) &&
         (overflowPerUnit["Ben & Jerry's"] || 0) < maxOverflowPerUnit) {
         targetRetailUnit = "Ben & Jerry's";
         console.log(`   🍦 ${staffName}: ${entranceUnit} → Ben & Jerry's (understaffed: ${bjCurrentCount}/${bjMinStaff}, has skill)`);
-      } else {
+      } else if (!targetRetailUnit) {
         for (const retailUnit of retailPriority) {
           const retailReq = staffingRequirements.find((requirement) => requirement.unitName === retailUnit);
           if (!retailReq) {

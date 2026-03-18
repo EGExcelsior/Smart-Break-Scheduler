@@ -659,8 +659,14 @@ function createBreakPlanningHelpers({
         }
       }
 
+      if (primaryAssignment.unit === 'Explorer Supplies' && timeToMinutes(targetSlot.start) > timeToMinutes('13:00')) {
+        targetSlot = breakSlots[2];
+        console.log(`   🧰 ${staffName}: Explorer Supplies policy cap, moving break to 13:00`);
+      }
+
       const breakEndCheck = timeToMinutes(targetSlot.start) + (actualBreakMinutes || 45);
       const actualShiftEnd = timeToMinutes(shiftEnd);
+
       if (breakEndCheck > actualShiftEnd - 30) {
         const safeSlot = breakSlots.find((slot) => timeToMinutes(slot.start) + (actualBreakMinutes || 45) <= actualShiftEnd - 30);
         if (safeSlot) {
@@ -672,7 +678,16 @@ function createBreakPlanningHelpers({
         }
       }
 
-      if (targetSlot && targetSlot.assigned.length < targetSlot.capacity) {
+      const isExplorerSuppliesCriticalSlot =
+        primaryAssignment.unit === 'Explorer Supplies' &&
+        targetSlot &&
+        targetSlot.start === '13:00';
+
+      if (targetSlot && (targetSlot.assigned.length < targetSlot.capacity || isExplorerSuppliesCriticalSlot)) {
+        if (targetSlot.assigned.length >= targetSlot.capacity && isExplorerSuppliesCriticalSlot) {
+          console.log(`   🧰 ${staffName}: Explorer Supplies break allowed in full 13:00 slot (critical coverage policy)`);
+        }
+
         targetSlot.assigned.push(staffName);
         const breakDuration = actualBreakMinutes || 30;
         const breakStartMinutes = timeToMinutes(targetSlot.start);

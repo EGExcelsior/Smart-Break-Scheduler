@@ -176,6 +176,21 @@ function assignOverflowStaffStep5({
     totalAssignedByUnit[assignment.unit] = (totalAssignedByUnit[assignment.unit] || 0) + 1;
   }
 
+  const AFTERNOON_FLOOR_MINUTE = timeToMinutes('14:00');
+  const afternoonMinimumByUnit = {
+    'Explorer Supplies': hasExplorer ? 2 : 1
+  };
+
+  const countCoverageAtMinute = (unitName, minuteMark) => (
+    assignments.filter((assignment) =>
+      assignment.unit === unitName &&
+      assignment.staff !== 'UNFILLED' &&
+      !assignment.isBreak &&
+      timeToMinutes(assignment.startTime) <= minuteMark &&
+      timeToMinutes(assignment.endTime) > minuteMark
+    ).length
+  );
+
   const getOpeningMinuteForUnit = (unitName) => (
     unitName.includes("Ben & Jerry's") ? timeToMinutes('12:00') : timeToMinutes('10:00')
   );
@@ -222,8 +237,13 @@ function assignOverflowStaffStep5({
     const capHeadroom = ((unitCap - currentOverflow) / Math.max(1, unitCap)) * 25;
     const totalTarget = demand + unitCap;
     const coverageGap = Math.max(0, totalTarget - assignedNow) * 8;
+    const afternoonMin = afternoonMinimumByUnit[unitName] || 0;
+    const afternoonCoverage = countCoverageAtMinute(unitName, AFTERNOON_FLOOR_MINUTE);
+    const coversAfternoonFloor = staffStartMinute <= AFTERNOON_FLOOR_MINUTE && staffEndMinute > AFTERNOON_FLOOR_MINUTE;
+    const afternoonShortfall = Math.max(0, afternoonMin - afternoonCoverage);
+    const afternoonFloorUrgency = coversAfternoonFloor ? afternoonShortfall * 500 : 0;
 
-    return getPriorityScore(unitName) + (demandGap * 30) + capHeadroom + coverageGap + openingUrgency;
+    return getPriorityScore(unitName) + (demandGap * 30) + capHeadroom + coverageGap + openingUrgency + afternoonFloorUrgency;
   };
 
   const getPhase2UnitScore = (unitName, staffEndMinute) => {
@@ -237,8 +257,12 @@ function assignOverflowStaffStep5({
     const demand = hostDemandByUnit[unitName] || 1;
     const assignedNow = totalAssignedByUnit[unitName] || 0;
     const demandGap = Math.max(0, demand - assignedNow);
+    const afternoonMin = afternoonMinimumByUnit[unitName] || 0;
+    const afternoonCoverage = countCoverageAtMinute(unitName, AFTERNOON_FLOOR_MINUTE);
+    const afternoonShortfall = Math.max(0, afternoonMin - afternoonCoverage);
+    const afternoonFloorUrgency = staffEndMinute > AFTERNOON_FLOOR_MINUTE ? afternoonShortfall * 500 : 0;
 
-    return ((1 - overflowRatio) * 100) + (demandGap * 35) + getPriorityScore(unitName);
+    return ((1 - overflowRatio) * 100) + (demandGap * 35) + getPriorityScore(unitName) + afternoonFloorUrgency;
   };
 
   // Initialize overflow count for all available units
