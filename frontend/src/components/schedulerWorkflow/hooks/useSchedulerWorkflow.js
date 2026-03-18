@@ -45,9 +45,13 @@ const parseForcedAbsentNames = (rawInput) => {
   }
 
   const normalized = text
+    .replace(/\bcalled\s+in\s+sick\b/gi, '')
+    .replace(/\bcalled\s+in\b/gi, '')
     .replace(/\bis\s+sick\b/gi, '')
     .replace(/\bsick\b/gi, '')
+    .replace(/\bis\s+off\b/gi, '')
     .replace(/\boff\s+today\b/gi, '')
+    .replace(/\btoday\b/gi, '')
     .replace(/[.]/g, ' ');
 
   return normalized
@@ -273,6 +277,10 @@ const useSchedulerWorkflow = () => {
 
       const data = await autoAssign(formData);
       const fillRate = data.total > 0 ? `${Math.round((data.assigned / data.total) * 100)}%` : '0%';
+
+      if (data.excelFile && data.filename) {
+        downloadExcelFile(data.excelFile, data.filename);
+      }
 
       setAssignmentResult({
         ...data,
