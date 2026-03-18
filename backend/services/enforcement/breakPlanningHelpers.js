@@ -338,6 +338,8 @@ function createBreakPlanningHelpers({
         continue;
       }
 
+      const minCoverageDuringBreak = ['Sealife', 'Sealife Shop', 'Sea Life'].includes(breakNeeded.unit) ? 1 : 2;
+
       const staffPresentDuringBreak = assignments.filter((assignment) =>
         assignment.unit === breakNeeded.unit &&
         assignment.staff !== breakNeeded.staff &&
@@ -346,7 +348,7 @@ function createBreakPlanningHelpers({
         timeToMinutes(assignment.endTime) >= timeToMinutes(breakNeeded.endTime)
       );
 
-      if (staffPresentDuringBreak.length >= 2) {
+      if (staffPresentDuringBreak.length >= minCoverageDuringBreak) {
         console.log(`  ✅ ${breakNeeded.unit}: Already has ${staffPresentDuringBreak.length} staff present during ${breakNeeded.staff}'s break (no BC needed)`);
         continue;
       }
