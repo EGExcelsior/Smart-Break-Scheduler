@@ -292,6 +292,56 @@ function reassignEntranceStaffAfternoon({
 
     if (bjCurrent < bjTarget) {
       console.log(`   ⚠️  ${bjUnit} understaffed! Looking for skilled staff to cascade...`);
+      const movedToBj = new Set();
+
+      const reassignStaffToBj = (staffName, fromUnit, reason) => {
+        if (movedToBj.has(staffName)) return false;
+
+        let moved = false;
+        for (let index = 0; index < updatedAssignments.length; index++) {
+          const assignment = updatedAssignments[index];
+          if (assignment.staff !== staffName || assignment.unit !== fromUnit || assignment.isBreak) {
+            continue;
+          }
+
+          const assignStart = timeToMinutes(assignment.startTime);
+          const assignEnd = timeToMinutes(assignment.endTime);
+          const afternoonStartMin = timeToMinutes(AFTERNOON_START);
+
+          if (assignEnd > afternoonStartMin) {
+            if (assignStart >= afternoonStartMin) {
+              updatedAssignments[index] = {
+                ...assignment,
+                unit: bjUnit
+              };
+              moved = true;
+            } else if (assignStart < afternoonStartMin && assignEnd > afternoonStartMin) {
+              updatedAssignments[index] = {
+                ...assignment,
+                endTime: AFTERNOON_START
+              };
+
+              updatedAssignments.push({
+                ...assignment,
+                unit: bjUnit,
+                startTime: AFTERNOON_START
+              });
+              moved = true;
+            }
+          }
+        }
+
+        if (moved) {
+          movedToBj.add(staffName);
+          bjCurrent++;
+          reassignments.push({ staff: staffName, from: fromUnit, to: bjUnit, cascade: true });
+          console.log(`   🔄 CASCADE: ${staffName} ${reason} → ${bjUnit}`);
+          return true;
+        }
+
+        return false;
+      };
+
       const sweetAfternoonStaff = updatedAssignments.filter((assignment) =>
         assignment.unit === sweetUnit &&
         assignment.staff !== 'UNFILLED' &&
@@ -309,46 +359,37 @@ function reassignEntranceStaffAfternoon({
         if (!hasSkillForUnit(staffName, bjUnit, skillsData)) {
           continue;
         }
+        reassignStaffToBj(staffName, sweetUnit, `has B&J skill, moving from ${sweetUnit}`);
+      }
 
-        console.log(`   🔄 CASCADE: ${staffName} has B&J skill, moving from ${sweetUnit} → ${bjUnit}`);
-        for (let index = 0; index < updatedAssignments.length; index++) {
-          const assignment = updatedAssignments[index];
-          if (assignment.staff !== staffName || assignment.unit !== sweetUnit || assignment.isBreak) {
-            continue;
-          }
+      if (bjCurrent < bjTarget) {
+        const otherSkilledCandidates = [];
+        const seenStaff = new Set();
+
+        for (const assignment of updatedAssignments) {
+          if (assignment.unit === bjUnit || assignment.staff === 'UNFILLED' || assignment.isBreak) continue;
+          if (seenStaff.has(assignment.staff)) continue;
 
           const assignStart = timeToMinutes(assignment.startTime);
           const assignEnd = timeToMinutes(assignment.endTime);
           const afternoonStartMin = timeToMinutes(AFTERNOON_START);
+          if (!(assignStart <= afternoonStartMin && assignEnd > afternoonStartMin)) continue;
+          if (!hasSkillForUnit(assignment.staff, bjUnit, skillsData)) continue;
 
-          if (assignEnd > afternoonStartMin) {
-            if (assignStart >= afternoonStartMin) {
-              updatedAssignments[index] = {
-                ...assignment,
-                unit: bjUnit
-              };
-            } else if (assignStart < afternoonStartMin && assignEnd > afternoonStartMin) {
-              updatedAssignments[index] = {
-                ...assignment,
-                endTime: AFTERNOON_START
-              };
-
-              updatedAssignments.push({
-                ...assignment,
-                unit: bjUnit,
-                startTime: AFTERNOON_START
-              });
-            }
-          }
+          seenStaff.add(assignment.staff);
+          otherSkilledCandidates.push({
+            staff: assignment.staff,
+            unit: assignment.unit,
+            priority: assignment.unit.includes('Entrance') ? 0 : 1
+          });
         }
 
-        bjCurrent++;
-        reassignments.push({
-          staff: staffName,
-          from: sweetUnit,
-          to: bjUnit,
-          cascade: true
-        });
+        otherSkilledCandidates.sort((left, right) => left.priority - right.priority);
+
+        for (const candidate of otherSkilledCandidates) {
+          if (bjCurrent >= bjTarget) break;
+          reassignStaffToBj(candidate.staff, candidate.unit, `has B&J skill, moving from ${candidate.unit}`);
+        }
       }
 
       if (bjCurrent < bjTarget) {

@@ -8,6 +8,8 @@ function applyAztecaPrePass(options) {
     dayCode,
     zone,
     getCategoryFromUnit,
+    hasSkillForUnit,
+    skillsData,
     log = console.log
   } = options;
 
@@ -24,10 +26,24 @@ function applyAztecaPrePass(options) {
   const AZTECA_LODGE_TIME = '11:00';
   const AZTECA_STAFF_COUNT = 2;
 
+  const bjIsSelected = staffingRequirements.some((r) => r.unitName === "Ben & Jerry's");
+
   const aztecaCandidates = [
     ...staffByType.regularHostsFullShift,
     ...staffByType.seniorHostsFullShift
-  ].filter((staff) => !assignedStaff.has(staff.name) && staff.startTime === '08:30');
+  ]
+    .filter((staff) => !assignedStaff.has(staff.name) && staff.startTime === '08:30')
+    .sort((left, right) => {
+      if (!bjIsSelected || !hasSkillForUnit || !skillsData) {
+        return 0;
+      }
+
+      const leftIsBjTrained = hasSkillForUnit(left.name, "Ben & Jerry's", skillsData) ? 1 : 0;
+      const rightIsBjTrained = hasSkillForUnit(right.name, "Ben & Jerry's", skillsData) ? 1 : 0;
+
+      // Prefer non-B&J-trained staff for Azteca so B&J pre-pass keeps trained people available
+      return leftIsBjTrained - rightIsBjTrained;
+    });
 
   const EXPLORER_BASELINE_DAYS = new Set(['E', 'F', 'G', 'H', 'I']);
   const hasExplorerEntrance = staffingRequirements.some((r) => r.unitName === 'Explorer Entrance');
@@ -36,7 +52,7 @@ function applyAztecaPrePass(options) {
     ? 'Explorer Entrance'
     : (hasLodgeEntrance ? 'Lodge Entrance' : 'Adventure Point Gift Shop');
 
-  log(`\n   🚗 Azteca pre-pass: assigning 2 early starters (08:30-${AZTECA_LEAVE_TIME}), then ${postAztecaUnit} (${AZTECA_LEAVE_TIME}-${AZTECA_LODGE_TIME}), break at 11:00`);
+  log(`\n   🚗 Azteca pre-pass: assigning 2 early starters (08:30-${AZTECA_LEAVE_TIME}), then ${postAztecaUnit} (${AZTECA_LEAVE_TIME}-${AZTECA_LODGE_TIME}), handover at 11:00`);
 
   let aztecaFilled = 0;
   let assignedCount = 0;
@@ -98,7 +114,7 @@ function applyAztecaPrePass(options) {
     aztecaFilled += 1;
     assignedCount += 1;
 
-    log(`   🚗 ${host.name} → Azteca (08:30-${AZTECA_LEAVE_TIME}) → ${postAztecaUnit} (${AZTECA_LEAVE_TIME}-${AZTECA_LODGE_TIME}) → break 11:00 → free`);
+    log(`   🚗 ${host.name} → Azteca (08:30-${AZTECA_LEAVE_TIME}) → ${postAztecaUnit} (${AZTECA_LEAVE_TIME}-${AZTECA_LODGE_TIME}) → handover 11:00 → free`);
   }
 
   if (aztecaFilled < AZTECA_STAFF_COUNT) {

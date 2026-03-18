@@ -425,7 +425,9 @@ router.post('/auto-assign', upload.fields([
       filledPositions,
       dayCode,
       zone,
-      getCategoryFromUnit
+      getCategoryFromUnit,
+      hasSkillForUnit,
+      skillsData
     });
     assigned += aztecaPrePassResult.assignedCount;
 

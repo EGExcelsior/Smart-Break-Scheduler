@@ -644,10 +644,22 @@ function createBreakPlanningHelpers({
       if (targetSlot && targetSlot.assigned.length < targetSlot.capacity) {
         targetSlot.assigned.push(staffName);
         const breakDuration = actualBreakMinutes || 30;
+        const breakStartMinutes = timeToMinutes(targetSlot.start);
+        const breakEndMinutes = breakStartMinutes + breakDuration;
+        const activeAssignment = sorted.find((assignment) =>
+          timeToMinutes(assignment.startTime) <= breakStartMinutes &&
+          timeToMinutes(assignment.endTime) >= breakEndMinutes
+        );
+
+        if (!activeAssignment) {
+          console.log(`   ⚠️  ${staffName}: No active assignment covers ${targetSlot.start}-${minutesToTime(breakEndMinutes)}, skipping break`);
+          continue;
+        }
+
         const actualEndTime = minutesToTime(timeToMinutes(targetSlot.start) + breakDuration);
 
         breakAssignments.push({
-          unit: primaryAssignment.unit,
+          unit: activeAssignment.unit,
           position: 'BREAK',
           staff: staffName,
           startTime: targetSlot.start,
@@ -656,10 +668,10 @@ function createBreakPlanningHelpers({
           endMinutes: timeToMinutes(actualEndTime),
           isBreak: true,
           reason: `${targetSlot.label} slot`,
-          category: primaryAssignment.category
+          category: activeAssignment.category
         });
 
-        console.log(`   ☕ ${staffName} (${unit}): ${targetSlot.start}-${actualEndTime} [${targetSlot.label}]`);
+        console.log(`   ☕ ${staffName} (${activeAssignment.unit}): ${targetSlot.start}-${actualEndTime} [${targetSlot.label}]`);
         continue;
       }
 
@@ -694,10 +706,22 @@ function createBreakPlanningHelpers({
       if (alternateSlot) {
         alternateSlot.assigned.push(staffName);
         const breakDuration = actualBreakMinutes || 30;
+        const breakStartMinutes = timeToMinutes(alternateSlot.start);
+        const breakEndMinutes = breakStartMinutes + breakDuration;
+        const activeAssignment = sorted.find((assignment) =>
+          timeToMinutes(assignment.startTime) <= breakStartMinutes &&
+          timeToMinutes(assignment.endTime) >= breakEndMinutes
+        );
+
+        if (!activeAssignment) {
+          console.log(`   ⚠️  ${staffName}: No active assignment covers ${alternateSlot.start}-${minutesToTime(breakEndMinutes)}, skipping overflow break`);
+          continue;
+        }
+
         const actualEndTime = minutesToTime(timeToMinutes(alternateSlot.start) + breakDuration);
 
         breakAssignments.push({
-          unit: primaryAssignment.unit,
+          unit: activeAssignment.unit,
           position: 'BREAK',
           staff: staffName,
           startTime: alternateSlot.start,
@@ -706,10 +730,10 @@ function createBreakPlanningHelpers({
           endMinutes: timeToMinutes(actualEndTime),
           isBreak: true,
           reason: `${alternateSlot.label} overflow`,
-          category: primaryAssignment.category
+          category: activeAssignment.category
         });
 
-        console.log(`   ☕ ${staffName} (${unit}): ${alternateSlot.start}-${actualEndTime} [Overflow]`);
+        console.log(`   ☕ ${staffName} (${activeAssignment.unit}): ${alternateSlot.start}-${actualEndTime} [Overflow]`);
       }
     }
 
