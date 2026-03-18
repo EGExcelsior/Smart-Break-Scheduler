@@ -33,6 +33,14 @@ function getAssignmentRange(assignments) {
 
 function collectSignificantTimes(assignments, staffList) {
   const significantTimesSet = new Set();
+  const addMinutesToTime = (time, minutesToAdd) => {
+    const [hour, minute] = String(time || '00:00').split(':').map(Number);
+    const total = (hour * 60) + minute + minutesToAdd;
+    const safeTotal = Math.max(0, total);
+    const outHour = Math.floor(safeTotal / 60);
+    const outMinute = safeTotal % 60;
+    return `${outHour.toString().padStart(2, '0')}:${outMinute.toString().padStart(2, '0')}`;
+  };
 
   for (const assignment of assignments) {
     if (assignment.startTime) significantTimesSet.add(assignment.startTime);
@@ -46,7 +54,11 @@ function collectSignificantTimes(assignments, staffList) {
     if (staff.endTime) significantTimesSet.add(staff.endTime);
   }
 
-  significantTimesSet.add('09:15');
+  const briefingStarts = ['08:30', '09:15', '11:00'];
+  for (const briefingStart of briefingStarts) {
+    significantTimesSet.add(briefingStart);
+    significantTimesSet.add(addMinutesToTime(briefingStart, 15));
+  }
 
   return significantTimesSet;
 }
