@@ -155,6 +155,89 @@ function assignOverflowStaffStep5({
 
   const PRIORITY_ORDER = IDEAL_PRIORITY_ORDER.filter(unit => availableUnits.includes(unit));
 
+  const hostDemandByUnit = {};
+  for (const req of staffingRequirements) {
+    if (!availableUnits.includes(req.unitName)) continue;
+    if (!req.position.includes('Host')) continue;
+    if (req.position.includes('Senior Host')) continue;
+    if (req.position.includes('Break Cover')) continue;
+
+    const required = Number(req.staffNeeded) || 1;
+    hostDemandByUnit[req.unitName] = (hostDemandByUnit[req.unitName] || 0) + Math.max(1, required);
+  }
+
+  const totalAssignedByUnit = {};
+  for (const assignment of assignments) {
+    if (!availableUnits.includes(assignment.unit)) continue;
+    if (assignment.isBreak || assignment.staff === 'UNFILLED') continue;
+    totalAssignedByUnit[assignment.unit] = (totalAssignedByUnit[assignment.unit] || 0) + 1;
+  }
+
+  const getOpeningMinuteForUnit = (unitName) => (
+    unitName.includes("Ben & Jerry's") ? timeToMinutes('12:00') : timeToMinutes('10:00')
+  );
+
+  const hasOpeningCoverage = (unitName, openingMinute) => (
+    assignments.some((assignment) =>
+      assignment.unit === unitName &&
+      !assignment.isBreak &&
+      assignment.staff !== 'UNFILLED' &&
+      timeToMinutes(assignment.startTime) <= openingMinute &&
+      timeToMinutes(assignment.endTime) > openingMinute
+    )
+  );
+
+  const canStaffWorkUnit = (staffName, unitName) => {
+    const skillGatedUnits = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk"]);
+    if (!skillGatedUnits.has(unitName)) return true;
+    return hasSkillForUnit(staffName, unitName, skillsData);
+  };
+
+  const getPriorityScore = (unitName) => {
+    const index = PRIORITY_ORDER.indexOf(unitName);
+    if (index === -1) return 0;
+    return (PRIORITY_ORDER.length - index) * 20;
+  };
+
+  const getPhase1UnitScore = (unitName, staffStartMinute, staffEndMinute) => {
+    const openingMinute = getOpeningMinuteForUnit(unitName);
+    if (staffEndMinute <= openingMinute) return Number.NEGATIVE_INFINITY;
+
+    const unitCap = UNIT_OVERFLOW_TARGETS[unitName] || 2;
+    const currentOverflow = overflowCount[unitName] || 0;
+    if (currentOverflow >= unitCap) return Number.NEGATIVE_INFINITY;
+
+    const demand = hostDemandByUnit[unitName] || 1;
+    const assignedNow = totalAssignedByUnit[unitName] || 0;
+    const demandGap = Math.max(0, demand - assignedNow);
+
+    let openingUrgency = 0;
+    if (staffStartMinute <= openingMinute && !hasOpeningCoverage(unitName, openingMinute)) {
+      openingUrgency = 120;
+    }
+
+    const capHeadroom = ((unitCap - currentOverflow) / Math.max(1, unitCap)) * 25;
+    const totalTarget = demand + unitCap;
+    const coverageGap = Math.max(0, totalTarget - assignedNow) * 8;
+
+    return getPriorityScore(unitName) + (demandGap * 30) + capHeadroom + coverageGap + openingUrgency;
+  };
+
+  const getPhase2UnitScore = (unitName, staffEndMinute) => {
+    const openingMinute = getOpeningMinuteForUnit(unitName);
+    if (staffEndMinute <= openingMinute) return Number.NEGATIVE_INFINITY;
+
+    const unitCap = UNIT_OVERFLOW_TARGETS[unitName] || 2;
+    const currentOverflow = overflowCount[unitName] || 0;
+    const overflowRatio = currentOverflow / Math.max(1, unitCap);
+
+    const demand = hostDemandByUnit[unitName] || 1;
+    const assignedNow = totalAssignedByUnit[unitName] || 0;
+    const demandGap = Math.max(0, demand - assignedNow);
+
+    return ((1 - overflowRatio) * 100) + (demandGap * 35) + getPriorityScore(unitName);
+  };
+
   // Initialize overflow count for all available units
   for (const unit of availableUnits) {
     overflowCount[unit] = 0;
@@ -184,27 +267,34 @@ function assignOverflowStaffStep5({
 
     // If no target yet (either full-shift or Lodge not available/at cap for short-shift)
     if (!targetUnit) {
+      const staffStartMinute = timeToMinutes(staff.startTime);
+      const staffEndMinute = timeToMinutes(staff.endTime);
+
       // ✅ Try priority units first, respecting unit-specific caps
+      let bestPhase1Score = Number.NEGATIVE_INFINITY;
       for (const unitName of PRIORITY_ORDER) {
-        const unitCap = UNIT_OVERFLOW_TARGETS[unitName] || 2;
-        // ✅ Skill gate: B&J and B&J Kiosk require trained staff even in overflow
-        const BJ_UNITS = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk"]);
-        if (BJ_UNITS.has(unitName) && !hasSkillForUnit(staff.name, unitName, skillsData)) continue;
-        if (overflowCount[unitName] < unitCap) {
+        if (!canStaffWorkUnit(staff.name, unitName)) continue;
+        const score = getPhase1UnitScore(unitName, staffStartMinute, staffEndMinute);
+        if (score > bestPhase1Score) {
+          bestPhase1Score = score;
           targetUnit = unitName;
-          break;
         }
       }
 
-      // ✅ If all priority units at cap, try ANY available unit that hasn't hit cap
+      // ✅ If all priority units at cap/ineligible, try all available units by fair score
       if (!targetUnit) {
+        let bestPhase2Score = Number.NEGATIVE_INFINITY;
         for (const unitName of availableUnits) {
-          const unitCap = UNIT_OVERFLOW_TARGETS[unitName] || 2;
-          if (overflowCount[unitName] < unitCap) {
+          if (!canStaffWorkUnit(staff.name, unitName)) continue;
+          const score = getPhase2UnitScore(unitName, staffEndMinute);
+          if (score > bestPhase2Score) {
+            bestPhase2Score = score;
             targetUnit = unitName;
-            console.log(`   📌 ${staff.name}: All priority units at cap, using fallback → ${unitName}`);
-            break;
           }
+        }
+
+        if (targetUnit) {
+          console.log(`   📌 ${staff.name}: Priority caps reached/ineligible, fair fallback → ${targetUnit}`);
         }
       }
 
@@ -261,6 +351,7 @@ function assignOverflowStaffStep5({
 
       assignedStaff.add(staff.name);
       overflowCount[targetUnit]++;
+      totalAssignedByUnit[targetUnit] = (totalAssignedByUnit[targetUnit] || 0) + 1;
       const unitCap = UNIT_OVERFLOW_TARGETS[targetUnit] || 2;
       const label = endHour <= 14 ? 'MORNING' : `OVERFLOW #${overflowCount[targetUnit]}/${unitCap}`;
       console.log(`   ✅ ${staff.name} → ${req.unitName} (${label}, ${staff.startTime}-${staff.endTime})`);
