@@ -348,8 +348,18 @@ function createBreakPlanningHelpers({
         timeToMinutes(assignment.endTime) >= timeToMinutes(breakNeeded.endTime)
       );
 
-      if (staffPresentDuringBreak.length >= minCoverageDuringBreak) {
-        console.log(`  ✅ ${breakNeeded.unit}: Already has ${staffPresentDuringBreak.length} staff present during ${breakNeeded.staff}'s break (no BC needed)`);
+      const smartCoverAlreadyAssigned = smartAssignments.filter((assignment) =>
+        assignment.unit === breakNeeded.unit &&
+        !assignment.isBreak &&
+        timeToMinutes(assignment.startTime) <= timeToMinutes(breakNeeded.startTime) &&
+        timeToMinutes(assignment.endTime) >= timeToMinutes(breakNeeded.endTime)
+      );
+
+      const effectiveCoverageCount = staffPresentDuringBreak.length + smartCoverAlreadyAssigned.length;
+
+      if (effectiveCoverageCount >= minCoverageDuringBreak) {
+        const coveredBySmart = smartCoverAlreadyAssigned.length > 0 ? ` + ${smartCoverAlreadyAssigned.length} BC` : '';
+        console.log(`  ✅ ${breakNeeded.unit}: Already has ${staffPresentDuringBreak.length} staff present${coveredBySmart} during ${breakNeeded.staff}'s break (no BC needed)`);
         continue;
       }
 
