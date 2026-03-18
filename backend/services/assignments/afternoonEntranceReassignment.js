@@ -76,7 +76,7 @@ function reassignEntranceStaffAfternoon({
   const retailPriority = [
     "Ben & Jerry's",
     'Sweet Shop',
-    'Adventures Point Gift Shop',
+    'Adventure Point Gift Shop',
     'Sealife',
     'Explorer Supplies',
     "Ben & Jerry's Kiosk",
@@ -174,7 +174,7 @@ function reassignEntranceStaffAfternoon({
         if (!targetRetailUnit) {
           const skillRequiredUnits = ["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sealife'];
           const step6UnitMinimums = {
-            'Adventures Point Gift Shop': 3,
+            'Adventure Point Gift Shop': 3,
             'Sweet Shop': 3,
             'Explorer Supplies': 2,
             'Sealife': 2,

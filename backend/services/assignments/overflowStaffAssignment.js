@@ -69,7 +69,7 @@ function assignOverflowStaffStep5({
       'Lodge Entrance': 3,             // Secondary entrance (baseline + 3 overflow = 4-5 total)
       'Schools Entrance': 2,           // Additional Schools overflow (baseline varies + 2 = 5-6 total)
       // Azteca excluded — closes at 10:00, staffed by pre-pass only
-      'Adventures Point Gift Shop': 3,
+      'Adventure Point Gift Shop': 3,
       'Sweet Shop': 2,
       'Sealife': 1,
       'Explorer Supplies': 2,
@@ -83,7 +83,7 @@ function assignOverflowStaffStep5({
       'Explorer Entrance': 3,          // Priority entrance, reduced to avoid over-concentration
       'Lodge Entrance': 2,             // Secondary (baseline 2 + 2 overflow = 3-4 total)
       // Azteca excluded — closes at 10:00, staffed by pre-pass only
-      'Adventures Point Gift Shop': 3,
+      'Adventure Point Gift Shop': 3,
       'Sweet Shop': 2,
       'Sealife': 1,
       'Explorer Supplies': 2,
@@ -97,7 +97,7 @@ function assignOverflowStaffStep5({
       'Lodge Entrance': 3,             // Priority entrance, reduced to avoid over-concentration
       'Schools Entrance': 2,           // Additional Schools overflow (baseline 4 + 2 = 5-6 total)
       // Azteca excluded — closes at 10:00, staffed by pre-pass only
-      'Adventures Point Gift Shop': 3,
+      'Adventure Point Gift Shop': 3,
       'Sweet Shop': 2,
       'Sealife': 1,
       'Explorer Supplies': 2,
@@ -110,7 +110,7 @@ function assignOverflowStaffStep5({
     UNIT_OVERFLOW_TARGETS = {
       'Lodge Entrance': 1,             // Quiet day - minimal overflow (baseline 2 + 1 = 2-3 total)
       // Azteca excluded — closes at 10:00, staffed by pre-pass only
-      'Adventures Point Gift Shop': 3,
+      'Adventure Point Gift Shop': 3,
       'Sweet Shop': 2,
       'Explorer Supplies': 1,
       'Sealife': 1,
@@ -134,16 +134,16 @@ function assignOverflowStaffStep5({
   let IDEAL_PRIORITY_ORDER;
   if (hasExplorer && hasSchools) {
     // Both Explorer and Schools (e.g., Day Code G)
-    IDEAL_PRIORITY_ORDER = ['Explorer Entrance', 'Lodge Entrance', 'Schools Entrance', 'Adventures Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
+    IDEAL_PRIORITY_ORDER = ['Explorer Entrance', 'Lodge Entrance', 'Schools Entrance', 'Adventure Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
   } else if (hasExplorer) {
     // Explorer open, no Schools (Day Codes E, F, H, I)
-    IDEAL_PRIORITY_ORDER = ['Explorer Entrance', 'Lodge Entrance', 'Adventures Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
+    IDEAL_PRIORITY_ORDER = ['Explorer Entrance', 'Lodge Entrance', 'Adventure Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
   } else if (hasSchools) {
     // Schools open, no Explorer (Day Codes B, C, D)
-    IDEAL_PRIORITY_ORDER = ['Lodge Entrance', 'Schools Entrance', 'Adventures Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
+    IDEAL_PRIORITY_ORDER = ['Lodge Entrance', 'Schools Entrance', 'Adventure Point Gift Shop', 'Sweet Shop', 'Sealife', 'Explorer Supplies', 'Ben & Jerry\'s', 'Lorikeets'];
   } else {
     // Lodge only (Day Code A, K-N - quiet days)
-    IDEAL_PRIORITY_ORDER = ['Adventures Point Gift Shop', 'Sweet Shop', 'Lodge Entrance', 'Sealife', 'Ben & Jerry\'s', 'Lorikeets'];
+    IDEAL_PRIORITY_ORDER = ['Adventure Point Gift Shop', 'Sweet Shop', 'Lodge Entrance', 'Sealife', 'Ben & Jerry\'s', 'Lorikeets'];
   }
 
   // ✅ FIX: Filter to only units that actually have requirements for this day code
@@ -368,7 +368,7 @@ function assignOverflowStaffStep5({
   const summaryParts = [];
   let targetsExceeded = false;
   for (const unit of PRIORITY_ORDER) {
-    const shortName = unit.replace(' Entrance', '').replace('Adventures Point Gift Shop', 'APGS').replace('Sweet Shop', 'Sweet').replace('Ben & Jerry\'s', 'BJ').replace('Explorer Supplies', 'Exp Supp').replace('Ben & Jerry\'s Kiosk', 'BJ Kiosk');
+    const shortName = unit.replace(' Entrance', '').replace('Adventure Point Gift Shop', 'APGS').replace('Sweet Shop', 'Sweet').replace('Ben & Jerry\'s', 'BJ').replace('Explorer Supplies', 'Exp Supp').replace('Ben & Jerry\'s Kiosk', 'BJ Kiosk');
     const target = UNIT_OVERFLOW_TARGETS[unit] || 2;
     const actual = overflowCount[unit] || 0;
 

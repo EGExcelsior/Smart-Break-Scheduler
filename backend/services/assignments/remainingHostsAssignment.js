@@ -74,7 +74,7 @@ function assignRemainingHostsStep4(options) {
   // ----------------------------------------------------------------
   // APGS opening target (min 2 at 10:00) then overall min 3
   // ----------------------------------------------------------------
-  const APGS_UNIT = 'Adventures Point Gift Shop';
+  const APGS_UNIT = 'Adventure Point Gift Shop';
   const APGS_OPENING_TIME = '10:00';
   const APGS_OPENING_TARGET = 2;
   const APGS_OVERALL_TARGET = 3;
