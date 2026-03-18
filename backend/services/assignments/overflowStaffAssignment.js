@@ -65,14 +65,14 @@ function assignOverflowStaffStep5({
   if (hasExplorer && hasSchools) {
     // Both Explorer and Schools open (e.g., Day Code G)
     UNIT_OVERFLOW_TARGETS = {
-      'Explorer Entrance': 4,          // Priority entrance (baseline + 4 overflow = 5-6 total)
+      'Explorer Entrance': 3,          // Priority entrance, reduced to avoid over-concentration
       'Lodge Entrance': 3,             // Secondary entrance (baseline + 3 overflow = 4-5 total)
       'Schools Entrance': 2,           // Additional Schools overflow (baseline varies + 2 = 5-6 total)
       // Azteca excluded — closes at 10:00, staffed by pre-pass only
-      'Adventures Point Gift Shop': 2,
+      'Adventures Point Gift Shop': 3,
       'Sweet Shop': 2,
       'Sealife': 1,
-      'Explorer Supplies': 1,
+      'Explorer Supplies': 2,
       'Ben & Jerry\'s': 2,
       'Ben & Jerry\'s Kiosk': 1,
       'Lorikeets': 1
@@ -80,13 +80,13 @@ function assignOverflowStaffStep5({
   } else if (hasExplorer) {
     // Explorer open, no Schools (Day Codes E, F, H, I)
     UNIT_OVERFLOW_TARGETS = {
-      'Explorer Entrance': 4,          // Priority entrance (baseline 2-3 + 4 overflow = 5-6 total)
+      'Explorer Entrance': 3,          // Priority entrance, reduced to avoid over-concentration
       'Lodge Entrance': 2,             // Secondary (baseline 2 + 2 overflow = 3-4 total)
       // Azteca excluded — closes at 10:00, staffed by pre-pass only
-      'Adventures Point Gift Shop': 2,
+      'Adventures Point Gift Shop': 3,
       'Sweet Shop': 2,
       'Sealife': 1,
-      'Explorer Supplies': 1,
+      'Explorer Supplies': 2,
       'Ben & Jerry\'s': 2,
       'Ben & Jerry\'s Kiosk': 1,
       'Lorikeets': 1
@@ -94,13 +94,13 @@ function assignOverflowStaffStep5({
   } else if (hasSchools) {
     // Schools open, no Explorer (Day Codes B, C, D)
     UNIT_OVERFLOW_TARGETS = {
-      'Lodge Entrance': 4,             // Priority entrance (baseline 2 + 4 overflow = 5-6 total)
+      'Lodge Entrance': 3,             // Priority entrance, reduced to avoid over-concentration
       'Schools Entrance': 2,           // Additional Schools overflow (baseline 4 + 2 = 5-6 total)
       // Azteca excluded — closes at 10:00, staffed by pre-pass only
-      'Adventures Point Gift Shop': 2,
+      'Adventures Point Gift Shop': 3,
       'Sweet Shop': 2,
       'Sealife': 1,
-      'Explorer Supplies': 1,
+      'Explorer Supplies': 2,
       'Ben & Jerry\'s': 2,
       'Ben & Jerry\'s Kiosk': 1,
       'Lorikeets': 1
@@ -110,9 +110,12 @@ function assignOverflowStaffStep5({
     UNIT_OVERFLOW_TARGETS = {
       'Lodge Entrance': 1,             // Quiet day - minimal overflow (baseline 2 + 1 = 2-3 total)
       // Azteca excluded — closes at 10:00, staffed by pre-pass only
-      'Adventures Point Gift Shop': 2,
+      'Adventures Point Gift Shop': 3,
       'Sweet Shop': 2,
+      'Explorer Supplies': 1,
       'Sealife': 1,
+      'Ben & Jerry\'s': 2,
+      'Ben & Jerry\'s Kiosk': 1,
       'Lorikeets': 1
     };
   }
