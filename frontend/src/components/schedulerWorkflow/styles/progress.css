@@ -17,8 +17,8 @@
   min-width: 176px;
   padding: 0.78rem 0.82rem;
   border-radius: 17px;
-  border: 1px solid rgba(61, 82, 87, 0.18);
-  background: rgba(255, 253, 248, 0.88);
+  border: 1px solid rgba(247, 239, 226, 0.22);
+  background: rgba(29, 47, 54, 0.68);
   backdrop-filter: blur(12px);
   transition: transform 0.25s ease, background 0.25s ease, border-color 0.25s ease;
 }
@@ -44,8 +44,8 @@
   width: 36px;
   height: 36px;
   border-radius: 12px;
-  background: rgba(248, 242, 232, 0.92);
-  color: var(--mw-ink-950);
+  background: rgba(247, 239, 226, 0.18);
+  color: #f7efe2;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -67,21 +67,25 @@
 }
 
 .progress-step .step-label {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--mw-ink-900);
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: rgba(247, 239, 226, 0.9);
   text-align: left;
   width: auto;
   line-height: 1.35;
 }
 
 .progress-step.current .step-label {
-  color: var(--mw-brand-600);
+  color: #f8f2e8;
+}
+
+.progress-step.completed .step-label {
+  color: #f8f2e8;
 }
 
 .progress-line {
   width: 18px;
   height: 1px;
-  background: rgba(61, 82, 87, 0.22);
+  background: rgba(247, 239, 226, 0.28);
   flex-shrink: 0;
 }
