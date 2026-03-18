@@ -67,7 +67,6 @@ const SchedulerWorkflow = () => {
     }
   } = useSchedulerWorkflow();
 
-  const currentStepLabel = STEP_LABELS[currentStep - 1];
 
   return (
     <div className="modern-workflow">
@@ -138,11 +137,6 @@ const SchedulerWorkflow = () => {
           />
         )}
 
-        <div className="workflow-stage-footer" aria-live="polite">
-          <span className="workflow-stage-footer-label">Current stage</span>
-          <strong>{currentStepLabel}</strong>
-          <p>Step {currentStep} of {STEP_LABELS.length}</p>
-        </div>
       </section>
     </div>
   );

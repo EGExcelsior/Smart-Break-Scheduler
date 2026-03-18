@@ -9,15 +9,16 @@ const ProgressBar = ({ currentStep }) => {
       {STEP_LABELS.map((label, index) => {
         const stepNumber = index + 1;
         const isActive = currentStep >= stepNumber;
+        const isCurrent = currentStep === stepNumber;
         const isCompleted = currentStep > stepNumber;
         const stepStatus = isCompleted ? 'completed' : isActive ? 'current' : 'upcoming';
 
         return (
           <Fragment key={label}>
             <div
-              className={`progress-step ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`.trim()}
+              className={`progress-step ${isActive ? 'active' : ''} ${isCurrent ? 'current' : ''} ${isCompleted ? 'completed' : ''}`.trim()}
               role="listitem"
-              aria-current={currentStep === stepNumber ? 'step' : undefined}
+              aria-current={isCurrent ? 'step' : undefined}
               aria-label={`Step ${stepNumber} of ${totalSteps}: ${label}, ${stepStatus}`}
             >
               <div className="step-number" aria-hidden="true">{stepNumber}</div>

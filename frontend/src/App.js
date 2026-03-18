@@ -23,7 +23,7 @@ function App() {
       </main>
 
       <footer className="App-footer">
-        <p>Chessington World of Adventures | Rides & Attractions Planning</p>
+        <p>Chessington World of Adventures | Planning & Resource</p>
       </footer>
     </div>
   );

@@ -29,6 +29,12 @@
   transform: translateY(-2px);
 }
 
+.progress-step.current {
+  background: rgba(15, 118, 110, 0.2);
+  border-color: rgba(15, 118, 110, 0.46);
+  box-shadow: 0 10px 24px rgba(var(--mw-brand-rgb), 0.16);
+}
+
 .progress-step.completed {
   background: rgba(201, 122, 43, 0.14);
   border-color: rgba(201, 122, 43, 0.26);
@@ -48,7 +54,7 @@
   transition: all 0.25s ease;
 }
 
-.progress-step.active .step-number {
+.progress-step.current .step-number {
   background: #f8f2e8;
   color: var(--mw-brand-600);
   border: 1px solid rgba(var(--mw-brand-rgb), 0.36);
@@ -69,8 +75,8 @@
   line-height: 1.35;
 }
 
-.progress-step.active .step-label {
-  color: #f8f2e8;
+.progress-step.current .step-label {
+  color: var(--mw-brand-600);
 }
 
 .progress-line {

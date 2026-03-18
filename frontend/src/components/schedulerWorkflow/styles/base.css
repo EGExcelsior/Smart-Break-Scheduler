@@ -29,36 +29,6 @@
   padding: 0 1rem 0.4rem;
 }
 
-.workflow-stage-footer {
-  margin-top: 0.8rem;
-  padding: 0.7rem 0.9rem;
-  border-radius: 14px;
-  border: 1px solid rgba(61, 82, 87, 0.16);
-  background: rgba(255, 253, 248, 0.74);
-  color: var(--mw-ink-900);
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.55rem;
-}
-
-.workflow-stage-footer-label {
-  font-size: 0.66rem;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-  font-weight: 800;
-  color: var(--mw-ink-700);
-}
-
-.workflow-stage-footer strong {
-  font-size: 0.9rem;
-  font-family: 'Space Grotesk', 'Manrope', sans-serif;
-}
-
-.workflow-stage-footer p {
-  font-size: 0.78rem;
-  color: var(--mw-ink-700);
-}
-
 .workflow-intro {
   display: flex;
   justify-content: space-between;
