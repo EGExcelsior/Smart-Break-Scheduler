@@ -6,7 +6,7 @@
  * - Special sections: Zonal Leads, Senior Hosts, Park-Wide Units
  * - Unit headers with emoji icons
  * - Ride-specific colors from Skills Matrix
- * - Briefing detection (gold 15-min cells at 09:15 / 11:00)
+ * - Briefing detection (gold 15-min cells at 08:30 / 09:15 / 11:00)
  * 
  * @module excelPlannerGenerator
  * @version 8.0
@@ -482,7 +482,7 @@ async function generateExcelPlanner(scheduleData) {
   renderPlannerLegend(
     worksheet,
     timeSlots.length,
-    '🎨 Planner separated into RIDES and RETAIL sections | Senior Hosts highlighted in light blue | Colors match Skills Matrix | BREAK = White | BRIEFING = Gold (09:15/11:00)'
+    '🎨 Planner separated into RIDES and RETAIL sections | Senior Hosts highlighted in light blue | Colors match Skills Matrix | BREAK = White | BRIEFING = Gold (08:30/09:15/11:00)'
   );
   
   return await workbook.xlsx.writeBuffer();
