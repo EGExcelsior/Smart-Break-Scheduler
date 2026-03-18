@@ -253,6 +253,19 @@ function createBreakPlanningHelpers({
 
     console.log(`\n🎯 Phase 1: Single-Coverage Units (Breaks When BC Available)`);
 
+    const isBreakCoverSkillRequired = (unitName, category) => {
+      if (category === 'Rides') {
+        return true;
+      }
+
+      // Explorer Supplies can be covered by retail BC even without explicit unit skill
+      if (unitName === 'Explorer Supplies') {
+        return false;
+      }
+
+      return true;
+    };
+
     for (const unit of singleCoverageUnits) {
       const unitBreaks = breakAssignments.filter((breakAssignment) => breakAssignment.unit === unit);
       if (unitBreaks.length === 0) {
@@ -272,6 +285,10 @@ function createBreakPlanningHelpers({
           return false;
         }
 
+        if (!isBreakCoverSkillRequired(unit, category)) {
+          return true;
+        }
+
         return hasSkillForUnit(breakCoverer.name, unit, skillsData);
       });
 
@@ -287,9 +304,11 @@ function createBreakPlanningHelpers({
       }
 
       const bcArrivalMinutes = timeToMinutes(bcHours.startTime);
+      const originalBreakStart = breakToMove.startMinutes || timeToMinutes(breakToMove.startTime);
       const breakDuration = breakToMove.endMinutes - breakToMove.startMinutes;
       const breakSlots = [660, 720, 780, 840, 900];
-      const availableSlot = breakSlots.find((slot) => slot >= bcArrivalMinutes);
+      const earliestAllowed = Math.max(bcArrivalMinutes, originalBreakStart);
+      const availableSlot = breakSlots.find((slot) => slot >= earliestAllowed);
 
       if (!availableSlot) {
         console.log(`   ⚠️  ${unit}: BC arrives too late (${bcHours.startTime}) for any break slot`);
@@ -375,7 +394,7 @@ function createBreakPlanningHelpers({
         if ((category === 'Retail' || category === 'Admissions') && bcType.includes('ride')) {
           return false;
         }
-        if (!hasSkillForUnit(breakCoverer.name, breakNeeded.unit, skillsData)) {
+        if (isBreakCoverSkillRequired(breakNeeded.unit, category) && !hasSkillForUnit(breakCoverer.name, breakNeeded.unit, skillsData)) {
           return false;
         }
 
