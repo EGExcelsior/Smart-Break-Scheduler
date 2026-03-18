@@ -74,47 +74,99 @@ function assignBreakCoverStaff({
     if (matchingBreakCover && breakCoverType.includes('Retail')) {
       // ✅ FIX 21-24: Route Retail BC to understaffed unit as base (not just "Retail Break Cover")
       // They'll rove from their base unit to cover breaks across retail
+      const UNIT_ALIASES = {
+        'Adventure Point Gift Shop': ['Adventure Point Gift Shop', 'Adventures Point Gift Shop'],
+        'Sealife Shop': ['Sealife Shop', 'Sealife']
+      };
+
+      const resolveUnitCandidates = (unitName) => UNIT_ALIASES[unitName] || [unitName];
+
+      const findRetailHostReq = (unitName) => {
+        const candidates = resolveUnitCandidates(unitName);
+        return staffingRequirements.find((req) =>
+          candidates.includes(req.unitName) &&
+          req.position.includes('Host') &&
+          !req.position.includes('Senior Host')
+        );
+      };
+
+      const getCurrentUnitCoverage = (unitName) => {
+        const candidates = resolveUnitCandidates(unitName);
+        return assignments.filter((a) =>
+          candidates.includes(a.unit) &&
+          !a.isBreak &&
+          a.staff !== 'UNFILLED'
+        ).length;
+      };
+
       const BC_PLACEMENT_PRIORITY = [
-        'Adventures Point Gift Shop', 'Sweet Shop', "Ben & Jerry's",
-        'Explorer Supplies', 'Sealife', 'Lorikeets'
+        'Adventure Point Gift Shop', 'Sweet Shop', "Ben & Jerry's",
+        'Explorer Supplies', 'Sealife Shop', 'Lorikeets'
       ];
       // Target higher than enforcement minimums so BC staff still get placed
       // APGS target 5 allows both BC persons to base here
       const BC_UNIT_MINIMUMS = {
-        'Adventures Point Gift Shop': 5,
+        'Adventure Point Gift Shop': 5,
         'Sweet Shop': 4,
         "Ben & Jerry's": 3,
         'Explorer Supplies': 2,
-        'Sealife': 2,
+        'Sealife Shop': 2,
         'Lorikeets': 2
       };
       // Only skill-gate truly specialized units
-      const SKILL_GATED_BC = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sweet Shop', 'Sealife']);
+      const SKILL_GATED_BC = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sweet Shop', 'Sealife Shop']);
 
       let bcBaseUnit = null;
       let bcBaseReq = null;
 
       console.log(`  🔍 BC placement debug for ${timegripStaff.name}:`);
       for (const unitName of BC_PLACEMENT_PRIORITY) {
-        if (unitName === 'Sealife') {
-          const sealifeCount = assignments.filter(a => a.unit === 'Sealife' && !a.isBreak && a.staff !== 'UNFILLED').length;
+        if (unitName === 'Sealife Shop') {
+          const sealifeCount = getCurrentUnitCoverage('Sealife Shop');
           if (sealifeCount >= 2) { console.log(`    ${unitName}: SKIP (Sealife hard cap)`); continue; }
         }
         if (SKILL_GATED_BC.has(unitName) && !hasSkillForUnit(timegripStaff.name, unitName, skillsData)) {
           console.log(`    ${unitName}: SKIP (skill-gated — not trained)`);
           continue;
         }
-        const candidateReq = staffingRequirements.find(r =>
-          r.unitName === unitName && r.position.includes('Host') && !r.position.includes('Senior Host')
-        );
+        const candidateReq = findRetailHostReq(unitName);
         if (!candidateReq) { console.log(`    ${unitName}: SKIP (no req)`); continue; }
-        const currentCount = assignments.filter(a => a.unit === unitName && !a.isBreak && a.staff !== 'UNFILLED').length;
+        const currentCount = getCurrentUnitCoverage(unitName);
         const minimum = BC_UNIT_MINIMUMS[unitName] || 2;
         console.log(`    ${unitName}: count=${currentCount}, target=${minimum}, placing=${currentCount < minimum}`);
         if (currentCount < minimum) {
-          bcBaseUnit = unitName;
+          bcBaseUnit = candidateReq.unitName;
           bcBaseReq = candidateReq;
           break;
+        }
+      }
+
+      // If all minimums are met, still deploy as overflow to the least-covered retail unit
+      if (!bcBaseUnit) {
+        let bestFallback = null;
+        let lowestCount = Number.POSITIVE_INFINITY;
+
+        for (const unitName of BC_PLACEMENT_PRIORITY) {
+          if (SKILL_GATED_BC.has(unitName) && !hasSkillForUnit(timegripStaff.name, unitName, skillsData)) {
+            continue;
+          }
+
+          const candidateReq = findRetailHostReq(unitName);
+          if (!candidateReq) {
+            continue;
+          }
+
+          const currentCount = getCurrentUnitCoverage(unitName);
+          if (currentCount < lowestCount) {
+            lowestCount = currentCount;
+            bestFallback = candidateReq;
+          }
+        }
+
+        if (bestFallback) {
+          bcBaseReq = bestFallback;
+          bcBaseUnit = bestFallback.unitName;
+          console.log(`  📌 ${timegripStaff.name}: All BC minimums met, deploying as overflow to least-covered unit → ${bcBaseUnit}`);
         }
       }
 

@@ -34,7 +34,7 @@ function applyAztecaPrePass(options) {
   const hasLodgeEntrance = staffingRequirements.some((r) => r.unitName === 'Lodge Entrance');
   const postAztecaUnit = (EXPLORER_BASELINE_DAYS.has(dayCode) && hasExplorerEntrance)
     ? 'Explorer Entrance'
-    : (hasLodgeEntrance ? 'Lodge Entrance' : 'Adventures Point Gift Shop');
+    : (hasLodgeEntrance ? 'Lodge Entrance' : 'Adventure Point Gift Shop');
 
   log(`\n   🚗 Azteca pre-pass: assigning 2 early starters (08:30-${AZTECA_LEAVE_TIME}), then ${postAztecaUnit} (${AZTECA_LEAVE_TIME}-${AZTECA_LODGE_TIME}), break at 11:00`);
 

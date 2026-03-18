@@ -37,7 +37,7 @@ function createBreakPlanningHelpers({
     const canonicalUnit = canonicalizeUnitName(unit);
     const positionMap = {
       'Gift Shop': 'Retail Host',
-      'Adventures Point Gift Shop': 'Retail Host',
+      'Adventure Point Gift Shop': 'Retail Host',
       'Sweet Shop': 'Retail Host',
       'Sealife': 'Retail Host',
       'Lodge Entrance': 'Admissions Host',

@@ -20,7 +20,7 @@ function applySeniorHostPriorityStep(options) {
   const priorityUnitsForSeniorHost = [
     ...new Set([
       ...admissionsUnits,
-      'Adventures Point Gift Shop',
+      'Adventure Point Gift Shop',
       'Sweet Shop'
     ])
   ];

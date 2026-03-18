@@ -40,7 +40,7 @@ function prepareFullShiftAssignmentsAndReserve(options) {
     'Azteca Entrance': 4,
     Sealife: 10,
     'Sweet Shop': 11,
-    'Adventures Point Gift Shop': 12,
+    'Adventure Point Gift Shop': 12,
     'Explorer Supplies': 13,
     "Ben & Jerry's": 14,
     "Ben & Jerry's Kiosk": 15

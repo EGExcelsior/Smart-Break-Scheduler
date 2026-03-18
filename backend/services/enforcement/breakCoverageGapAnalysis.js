@@ -53,7 +53,7 @@ function analyzeBreakCoverageSmart({
   const MINIMUM_STAFF_REQUIRED = {
     'Lodge Entrance': 2,
     'Explorer Entrance': 2,
-    'Adventures Point Gift Shop': 2,
+    'Adventure Point Gift Shop': 2,
     'Sweet Shop': 2,
     'Sealife': 1,
     'Lorikeets': 1,
