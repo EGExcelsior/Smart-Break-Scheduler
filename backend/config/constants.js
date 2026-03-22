@@ -97,7 +97,7 @@ const UNIT_CATEGORIES = {
     'Croc Drop Shop', 'Freestyle & Vending', 'Freestyle and Vending', 'Freestyle', 'Paw Patrol Shop', 'Zufari Barrow',
     
     // PHANTOM RETAIL
-    'Gruffalo Shop', 'Jumanji Shop', 'Shipwreck Kiosk', 'Tiger Kiosk'
+    'Gruffalo Shop', 'Gruffalo Gift Shop', 'Jumanji Shop', 'Shipwreck Kiosk', 'Tiger Kiosk'
   ],
   'Car Parks': [
     'Car Parks - Staff Car Park', 'Car Parks - Hotel Car Park', 'Car Parks - Express',
