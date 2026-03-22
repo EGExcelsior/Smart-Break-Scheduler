@@ -15,6 +15,8 @@ function getUnitCategory(unitName) {
     lower.includes('shop') ||
     lower.includes('retail') ||
     lower.includes('kiosk') ||
+    lower.includes('freestyle') ||
+    lower.includes('vending') ||
     lower.includes('sealife') ||
     lower.includes('lorikeets') ||
     lower.includes('ben') ||

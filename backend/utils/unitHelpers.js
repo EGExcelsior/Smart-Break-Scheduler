@@ -24,6 +24,10 @@ function canonicalizeUnitName(unitName) {
     return 'Sealife';
   }
 
+  if (lower === 'freestyle and vending' || lower === 'freestyle & vending') {
+    return 'Freestyle & Vending';
+  }
+
   return compact;
 }
 
@@ -67,6 +71,10 @@ function getCategoryFromUnit(unitName) {
 
   if (canonicalLower.startsWith('ghi')) {
     return 'GHI';
+  }
+
+  if (canonicalLower.includes('freestyle') || canonicalLower.includes('vending')) {
+    return 'Retail';
   }
 
   for (const [category, unitList] of Object.entries(UNIT_CATEGORIES)) {

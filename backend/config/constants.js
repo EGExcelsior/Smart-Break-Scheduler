@@ -94,7 +94,7 @@ const UNIT_CATEGORIES = {
     'Sealife', 'Sweet Shop', "Ben & Jerry's", "Ben & Jerry's Kiosk",
     
     // ODYSSEY RETAIL
-    'Croc Drop Shop', 'Freestyle & Vending', 'Paw Patrol Shop', 'Zufari Barrow',
+    'Croc Drop Shop', 'Freestyle & Vending', 'Freestyle and Vending', 'Freestyle', 'Paw Patrol Shop', 'Zufari Barrow',
     
     // PHANTOM RETAIL
     'Gruffalo Shop', 'Jumanji Shop', 'Shipwreck Kiosk', 'Tiger Kiosk'
