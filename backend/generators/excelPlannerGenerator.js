@@ -193,17 +193,15 @@ function stylePlannerTimeCell(cell, timeSlot, assignment, explorerUnits, explore
   setThinBorder(cell);
 }
 
-function styleStaffNameCell(cell, staffName, seniorHostStaff) {
+function styleStaffNameCell(cell, staffName, seniorHostStaff, primaryAssignment) {
   cell.font = { bold: true, size: 10 };
   setThinBorder(cell);
 
-  // Apply senior host color if staff is a senior host or is an operator
-  // We'll use the staffName and try to infer from the name if it's an operator
-  // (If you want to use actual assignment data, refactor to pass position info here.)
-  const nameLower = staffName.toLowerCase();
+  // Apply senior host color if staff is a senior host or is an operator (by assignment)
+  const isOperator = primaryAssignment && primaryAssignment.position && primaryAssignment.position.toLowerCase().includes('operator');
   if (
     isSeniorHost(staffName, seniorHostStaff) ||
-    nameLower.includes('operator')
+    isOperator
   ) {
     cell.fill = {
       type: 'pattern',
@@ -317,7 +315,16 @@ function renderStaffTableSection({
       });
     }
 
-    styleStaffNameCell(staffRow.getCell(1), staffName, seniorHostStaff);
+    // Find the staff's primary assignment (first non-break assignment)
+    let primaryAssignment = null;
+    for (const timeSlot of timeSlots) {
+      const assignment = getLookupAssignment(lookup, staffName, timeSlot);
+      if (assignment && !assignment.isBreak) {
+        primaryAssignment = assignment;
+        break;
+      }
+    }
+    styleStaffNameCell(staffRow.getCell(1), staffName, seniorHostStaff, primaryAssignment);
   }
 
   if (postSpacerHeight > 0) {
