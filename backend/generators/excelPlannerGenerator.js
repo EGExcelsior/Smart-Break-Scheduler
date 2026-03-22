@@ -17,7 +17,8 @@ const { namesMatch } = require('../utils/nameMatching');
 const {
   SENIOR_HOST_COLOR,
   getRideColor,
-  getUnitAbbreviation
+  getUnitAbbreviation,
+  normalizeRideUnitName
 } = require('./excelPlannerConstants');
 const {
   renderPlannerHeaderSection,
@@ -46,7 +47,7 @@ function formatPositionName(unit, position) {
   if (category !== 'Rides') {
     return getUnitAbbreviation(unit) || unit.toUpperCase();
   }
-  const rideName = unit.replace(/ ?-? ?(OP|ATT|Operator|Attendant|Host|Driver|Skill|Senior)$/i, '').trim();
+  const rideName = normalizeRideUnitName(unit);
   const rideLabel = getUnitAbbreviation(rideName) || rideName.toUpperCase();
   let posType = '', fullPos = position;
   const posLower = position.toLowerCase();

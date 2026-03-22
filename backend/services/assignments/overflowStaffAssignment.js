@@ -1,5 +1,7 @@
 'use strict';
 
+const { isRetailLikeUnit } = require('../../utils/unitHelpers');
+
 /**
  * STEP 5: Assign Overflow Staff to Busy Units (Allow Overstaffing)
  *
@@ -152,7 +154,7 @@ function assignOverflowStaffStep5({
       r.position.includes('Host') &&
       !r.position.includes('Senior Host') &&
       !r.position.includes('Break Cover') &&
-      (r.unitName.includes('Entrance') || r.unitName.includes('Shop') || canonicalizeUnitName(r.unitName) === 'Sealife' || r.unitName.includes('Supplies') || r.unitName.includes('Jerry') || r.unitName.includes('Lorikeets'))
+      isRetailLikeUnit(r.unitName)
     )
     .map(r => r.unitName);
 

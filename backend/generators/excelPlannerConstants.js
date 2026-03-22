@@ -169,12 +169,17 @@ const UNIT_ABBREVIATIONS = {
 
 const SENIOR_HOST_COLOR = 'FFB9CDE5';
 
+function normalizeRideUnitName(unitName) {
+  if (!unitName) return '';
+  return String(unitName)
+    .replace(/ ?-? ?(OP|ATT|Operator|Attendant|Host|Driver|Skill|Senior)$/i, '')
+    .trim();
+}
+
 function getRideColor(unitName) {
   if (!unitName) return null;
 
-  const baseName = unitName
-    .replace(/ ?-? ?(OP|ATT|Operator|Attendant|Host|Driver|Skill|Senior)$/i, '')
-    .trim();
+  const baseName = normalizeRideUnitName(unitName);
 
   if (RIDE_COLORS[baseName]) {
     return RIDE_COLORS[baseName];
@@ -212,6 +217,7 @@ module.exports = {
   RIDE_COLORS,
   UNIT_ABBREVIATIONS,
   SENIOR_HOST_COLOR,
+  normalizeRideUnitName,
   getRideColor,
   getUnitAbbreviation
 };

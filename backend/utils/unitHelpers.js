@@ -85,11 +85,31 @@ function getCategoryFromUnit(unitName) {
   return 'Retail';
 }
 
+function isRetailLikeUnit(unitName) {
+  const canonicalUnit = canonicalizeUnitName(unitName);
+  if (typeof canonicalUnit !== 'string') {
+    return false;
+  }
+
+  const lower = canonicalUnit.toLowerCase();
+  return (
+    lower.includes('entrance') ||
+    lower.includes('shop') ||
+    canonicalUnit === 'Sealife' ||
+    lower.includes('supplies') ||
+    lower.includes('jerry') ||
+    lower.includes('lorikeets') ||
+    lower.includes('freestyle') ||
+    lower.includes('vending')
+  );
+}
+
 module.exports = {
   TEAM_UNIT_EXCLUSIONS,
   normalizeTeamKey,
   canonicalizeUnitName,
   getExcludedUnitsForTeam,
   filterUnitsForTeam,
-  getCategoryFromUnit
+  getCategoryFromUnit,
+  isRetailLikeUnit
 };

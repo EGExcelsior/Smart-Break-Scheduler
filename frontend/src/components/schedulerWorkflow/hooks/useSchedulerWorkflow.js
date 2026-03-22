@@ -79,6 +79,19 @@ const useSchedulerWorkflow = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const runWithLoading = async (operation) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      await operation();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFileSelect = (fileType) => (event) => {
     const file = event.target.files[0];
     if (!file) {
@@ -148,10 +161,7 @@ const useSchedulerWorkflow = () => {
   };
 
   const handleFetchUnitStatus = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
+    await runWithLoading(async () => {
       const data = await fetchUnitStatus({ teamName, zone, date, dayCode });
       setUnits(data.units);
 
@@ -159,11 +169,7 @@ const useSchedulerWorkflow = () => {
       const openUnits = allUnits.filter((unit) => unit.isOpen).map((unit) => unit.name);
       setSelectedUnits(enforceLockedOpenUnits(openUnits, data.units));
       setCurrentStep(3);
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const handleUnitToggle = (unitName, isOpen) => {
@@ -217,27 +223,17 @@ const useSchedulerWorkflow = () => {
   };
 
   const handleParseAnalyze = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
+    await runWithLoading(async () => {
       const formData = createBaseFormData({ files, teamName, zone, date, dayCode });
       const data = await parseAndAnalyze(formData);
       setAnalysisResult(data);
       setIncludedAbsentStaff([]);
       setCurrentStep(2);
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const handleAutoAssign = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
+    await runWithLoading(async () => {
       const formData = createBaseFormData({ files, teamName, zone, date, dayCode });
       formData.append('selectedUnits', JSON.stringify(selectedUnits));
       formData.append('includeAbsentStaff', JSON.stringify(includedAbsentStaff));
@@ -251,11 +247,7 @@ const useSchedulerWorkflow = () => {
       const fillRate = data.total > 0 ? `${Math.round((data.assigned / data.total) * 100)}%` : '0%';
       setAssignmentResult({ ...data, fillRate });
       setCurrentStep(4);
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const handleRunAbsenceScenario = async (scenarioInput) => {
@@ -265,10 +257,7 @@ const useSchedulerWorkflow = () => {
       return;
     }
 
-    setLoading(true);
-    setError(null);
-
-    try {
+    await runWithLoading(async () => {
       const formData = createBaseFormData({ files, teamName, zone, date, dayCode });
       formData.append('selectedUnits', JSON.stringify(selectedUnits));
       formData.append('includeAbsentStaff', JSON.stringify(includedAbsentStaff));
@@ -288,11 +277,7 @@ const useSchedulerWorkflow = () => {
         scenarioInput: forcedAbsentStaff.join(', ')
       });
       setCurrentStep(4);
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const handleFinalizeAssignmentReview = () => {

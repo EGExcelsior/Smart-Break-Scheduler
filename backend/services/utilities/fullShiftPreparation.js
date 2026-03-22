@@ -1,3 +1,5 @@
+const { isRetailLikeUnit } = require('../../utils/unitHelpers');
+
 function prepareFullShiftAssignmentsAndReserve(options) {
   const {
     staffingRequirements,
@@ -18,7 +20,7 @@ function prepareFullShiftAssignmentsAndReserve(options) {
 
   const fullShiftAssignments = [];
   const retailAdmissionsUnits = staffingRequirements.filter((req) =>
-    (req.unitName.includes('Shop') || canonicalizeUnitName(req.unitName) === 'Sealife' || req.unitName.includes('Entrance')) &&
+    isRetailLikeUnit(req.unitName) &&
     req.position.includes('Host') &&
     !req.position.includes('Senior Host') &&
     !req.position.includes('Break Cover')
