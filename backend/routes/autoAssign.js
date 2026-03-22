@@ -338,6 +338,10 @@ router.post('/auto-assign', upload.fields([
 
       const specificUnit = getSpecificUnitFromFunction(timegripStaff.plannedFunction);
 
+      if ((timegripStaff.plannedFunction || '').toLowerCase().includes('retail -')) {
+        console.log(`  🔎 PASS1 retail mapping: "${timegripStaff.plannedFunction}" -> "${specificUnit || 'NO_MATCH'}"`);
+      }
+
       if (!specificUnit) {
         console.log(`  ⚠️  ${timegripStaff.name}: Could not extract unit from "${timegripStaff.plannedFunction}"`);
         continue;
