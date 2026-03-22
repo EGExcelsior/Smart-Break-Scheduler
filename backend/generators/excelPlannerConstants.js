@@ -89,6 +89,14 @@ const RIDE_COLORS = {
 };
 
 const UNIT_ABBREVIATIONS = {
+  'Adventure Tree': 'TREE',
+  'Canopy Capers': 'CAPERS',
+  "Dragon's Playhouse": 'PLAYHOUSE',
+  "Griffin's Galleon": 'GRIFFINS',
+  "Griffin's Galeon": 'GRIFFINS',
+  'Room on the Broom': 'ROTB',
+  'Sea Dragons': 'SEA DRAGS',
+  'Tiny Truckers': 'TRUCKERS',
   'Adventures Point Gift Shop': 'APGS',
   'Adventure Point Gift Shop': 'APGS',
   'Sweet Shop': 'SWEET',

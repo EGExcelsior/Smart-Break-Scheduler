@@ -47,6 +47,7 @@ function formatPositionName(unit, position) {
     return getUnitAbbreviation(unit) || unit.toUpperCase();
   }
   const rideName = unit.replace(/ ?-? ?(OP|ATT|Operator|Attendant|Host|Driver|Skill|Senior)$/i, '').trim();
+  const rideLabel = getUnitAbbreviation(rideName) || rideName.toUpperCase();
   let posType = '', fullPos = position;
   const posLower = position.toLowerCase();
   if (posLower.includes('operator')) { posType = 'OP'; fullPos = 'Operator'; }
@@ -54,7 +55,7 @@ function formatPositionName(unit, position) {
   else if (posLower.includes('host')) { posType = 'HOST'; fullPos = 'Host'; }
   else if (posLower.includes('senior')) posType = 'SEN';
   else posType = position.substring(0, 3).toUpperCase();
-  return `${rideName.toUpperCase()} - ${posType}`;
+  return `${rideLabel} - ${posType}`;
 }
 
 function getHomeLabel(endTime) {
