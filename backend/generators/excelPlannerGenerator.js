@@ -153,14 +153,15 @@ function stylePlannerTimeCell(cell, timeSlot, assignment, explorerUnits, explore
     breakBorderWithBlack = false
   } = options;
 
-  const briefingSlot = assignment?.briefingTime || '09:15';
-  if (assignment && assignment.hasBriefing && timeSlot === briefingSlot) {
-    cell.value = 'LODGE BRIEF';
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD700' } };
-    cell.font = { bold: true, size: 9, color: { argb: 'FF000000' } };
-    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    return;
-  }
+  // Lodge brief is temporarily disabled for all briefing windows (08:30 / 09:15 / 11:00).
+  // const briefingSlot = assignment?.briefingTime || '09:15';
+  // if (assignment && assignment.hasBriefing && timeSlot === briefingSlot) {
+  //   cell.value = 'LODGE BRIEF';
+  //   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD700' } };
+  //   cell.font = { bold: true, size: 9, color: { argb: 'FF000000' } };
+  //   cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  //   return;
+  // }
 
   if (cell.value === 'BREAK') {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
@@ -482,7 +483,7 @@ async function generateExcelPlanner(scheduleData) {
   renderPlannerLegend(
     worksheet,
     timeSlots.length,
-    '🎨 Planner separated into RIDES and RETAIL sections | Senior Hosts highlighted in light blue | Colors match Skills Matrix | BREAK = White | BRIEFING = Gold (08:30/09:15/11:00)'
+    '🎨 Planner separated into RIDES and RETAIL sections | Senior Hosts highlighted in light blue | Colors match Skills Matrix | BREAK = White'
   );
   
   return await workbook.xlsx.writeBuffer();

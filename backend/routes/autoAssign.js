@@ -776,20 +776,21 @@ router.post('/auto-assign', upload.fields([
       }
     }
 
-    console.log('🎙️ Detecting briefing attendees...');
-    const briefingTimesByStaff = detectBriefingStaff(assignments);
-    const briefing0830 = Array.from(briefingTimesByStaff.values()).filter((time) => time === '08:30').length;
-    const briefing915 = Array.from(briefingTimesByStaff.values()).filter((time) => time === '09:15').length;
-    const briefing1100 = Array.from(briefingTimesByStaff.values()).filter((time) => time === '11:00').length;
-    console.log(`   ✅ ${briefingTimesByStaff.size} total briefing attendees (08:30=${briefing0830}, 09:15=${briefing915}, 11:00=${briefing1100})\n`);
+    // Lodge brief is temporarily disabled for all briefing windows (08:30 / 09:15 / 11:00).
+    // console.log('🎙️ Detecting briefing attendees...');
+    // const briefingTimesByStaff = detectBriefingStaff(assignments);
+    // const briefing0830 = Array.from(briefingTimesByStaff.values()).filter((time) => time === '08:30').length;
+    // const briefing915 = Array.from(briefingTimesByStaff.values()).filter((time) => time === '09:15').length;
+    // const briefing1100 = Array.from(briefingTimesByStaff.values()).filter((time) => time === '11:00').length;
+    // console.log(`   ✅ ${briefingTimesByStaff.size} total briefing attendees (08:30=${briefing0830}, 09:15=${briefing915}, 11:00=${briefing1100})\n`);
 
-    assignments.forEach(assignment => {
-      const briefingTime = briefingTimesByStaff.get(assignment.staff);
-      if (briefingTime && assignment.startTime === briefingTime) {
-        assignment.hasBriefing = true;
-        assignment.briefingTime = briefingTime;
-      }
-    });
+    // assignments.forEach(assignment => {
+    //   const briefingTime = briefingTimesByStaff.get(assignment.staff);
+    //   if (briefingTime && assignment.startTime === briefingTime) {
+    //     assignment.hasBriefing = true;
+    //     assignment.briefingTime = briefingTime;
+    //   }
+    // });
 
     const parkWideUnits = getAllParkUnits(ZONE_FILES);
 
