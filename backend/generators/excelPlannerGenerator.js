@@ -197,7 +197,14 @@ function styleStaffNameCell(cell, staffName, seniorHostStaff) {
   cell.font = { bold: true, size: 10 };
   setThinBorder(cell);
 
-  if (isSeniorHost(staffName, seniorHostStaff)) {
+  // Apply senior host color if staff is a senior host or is an operator
+  // We'll use the staffName and try to infer from the name if it's an operator
+  // (If you want to use actual assignment data, refactor to pass position info here.)
+  const nameLower = staffName.toLowerCase();
+  if (
+    isSeniorHost(staffName, seniorHostStaff) ||
+    nameLower.includes('operator')
+  ) {
     cell.fill = {
       type: 'pattern',
       pattern: 'solid',
