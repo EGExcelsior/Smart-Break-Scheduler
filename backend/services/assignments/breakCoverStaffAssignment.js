@@ -107,8 +107,7 @@ function assignBreakCoverStaff({
       ];
 
 
-      let bcBaseUnit = null;
-      let bcBaseReq = null;
+
 
       // --- Custom logic: assign first BC to Dragon Treats, second to Croc Drop Shop if both are open ---
       // Only applies if both units are in requirements and not already covered
@@ -118,8 +117,6 @@ function assignBreakCoverStaff({
       const bcRetailAssigned = global._bcRetailAssigned;
 
 
-      let bcBaseUnit = null;
-      let bcBaseReq = null;
 
       for (const specialUnit of bcRetailUnits) {
         const candidateReq = findRetailHostReq(specialUnit);
