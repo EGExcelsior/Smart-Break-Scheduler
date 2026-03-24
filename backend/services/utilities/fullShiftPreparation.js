@@ -37,9 +37,11 @@ function prepareFullShiftAssignmentsAndReserve(options) {
 
 
   // Shop units to prioritize before Freestyle & Vending
+  // Custom priority: Paw Patrol Shop, Croc Drop Shop, Dragon Treats, then others
   const shopUnits = [
-    'Adventures Point Gift Shop', 'Dragon Treats', 'Sealife', 'Sweet Shop', "Ben & Jerry's", "Ben & Jerry's Kiosk",
-    'Croc Drop Shop', 'Paw Patrol Shop', 'Zufari Barrow', 'Lorikeets', 'Gruffalo Shop', 'Gruffalo Gift Shop', 'Jumanji Shop', 'Shipwreck Kiosk', 'Tiger Kiosk'
+    'Paw Patrol Shop', 'Croc Drop Shop', 'Dragon Treats',
+    'Adventures Point Gift Shop', 'Sealife', 'Sweet Shop', "Ben & Jerry's", "Ben & Jerry's Kiosk",
+    'Zufari Barrow', 'Lorikeets', 'Gruffalo Shop', 'Gruffalo Gift Shop', 'Jumanji Shop', 'Shipwreck Kiosk', 'Tiger Kiosk'
   ];
   const freestyleUnits = ['Freestyle & Vending', 'Freestyle and Vending', 'Freestyle'];
 
