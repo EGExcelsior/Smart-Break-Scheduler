@@ -158,7 +158,12 @@ function assignOverflowStaffStep5({
     )
     .map(r => r.unitName);
 
-  const PRIORITY_ORDER = IDEAL_PRIORITY_ORDER.filter(unit => availableUnits.includes(unit));
+  // Move Freestyle & Vending units to the end of the priority order
+  const freestyleUnits = availableUnits.filter(unit => /freestyle/i.test(unit));
+  const shopUnits = availableUnits.filter(unit => !/freestyle/i.test(unit));
+  const PRIORITY_ORDER = IDEAL_PRIORITY_ORDER.filter(unit => shopUnits.includes(unit)).concat(
+    shopUnits.filter(unit => !IDEAL_PRIORITY_ORDER.includes(unit))
+  ).concat(freestyleUnits);
 
   const hostDemandByUnit = {};
   for (const req of staffingRequirements) {
@@ -275,6 +280,7 @@ function assignOverflowStaffStep5({
   console.log(`   📊 Day Code ${dayCode} = ${isBusyDay ? 'BUSY' : 'QUIET'} → Priority: ${PRIORITY_ORDER.slice(0, 3).join(', ')}...`);
   console.log(`   📋 Available units: ${availableUnits.join(', ')}`);
 
+
   for (const staff of overflowStaff) {
     if (assignedStaff.has(staff.name)) continue;
 
@@ -299,9 +305,17 @@ function assignOverflowStaffStep5({
       const staffStartMinute = timeToMinutes(staff.startTime);
       const staffEndMinute = timeToMinutes(staff.endTime);
 
-      // ✅ Try priority units first, respecting unit-specific caps
+      // Enforce: Do not assign to Freestyle & Vending until all shop units are fully staffed
+      const allShopUnitsFilled = shopUnits.every(unit => {
+        const demand = hostDemandByUnit[unit] || 1;
+        const assignedNow = totalAssignedByUnit[unit] || 0;
+        return assignedNow >= demand;
+      });
+
       let bestPhase1Score = Number.NEGATIVE_INFINITY;
       for (const unitName of PRIORITY_ORDER) {
+        // If this is a Freestyle unit and not all shop units are filled, skip
+        if (/freestyle/i.test(unitName) && !allShopUnitsFilled) continue;
         if (!canStaffWorkUnit(staff.name, unitName)) continue;
         const score = getPhase1UnitScore(unitName, staffStartMinute, staffEndMinute);
         if (score > bestPhase1Score) {
@@ -314,6 +328,8 @@ function assignOverflowStaffStep5({
       if (!targetUnit) {
         let bestPhase2Score = Number.NEGATIVE_INFINITY;
         for (const unitName of availableUnits) {
+          // If this is a Freestyle unit and not all shop units are filled, skip
+          if (/freestyle/i.test(unitName) && !allShopUnitsFilled) continue;
           if (!canStaffWorkUnit(staff.name, unitName)) continue;
           const score = getPhase2UnitScore(unitName, staffEndMinute);
           if (score > bestPhase2Score) {
@@ -333,6 +349,8 @@ function assignOverflowStaffStep5({
         // Find the unit with the lowest overflow count (round-robin distribution)
         let minCount = Infinity;
         for (const unitName of PRIORITY_ORDER) {
+          // If this is a Freestyle unit and not all shop units are filled, skip
+          if (/freestyle/i.test(unitName) && !allShopUnitsFilled) continue;
           if (overflowCount[unitName] < minCount) {
             minCount = overflowCount[unitName];
             targetUnit = unitName;
