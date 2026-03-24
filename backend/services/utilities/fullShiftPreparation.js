@@ -35,22 +35,27 @@ function prepareFullShiftAssignmentsAndReserve(options) {
     }
   }
 
-  const step2UnitPriority = {
-    'Explorer Entrance': 1,
-    'Lodge Entrance': 2,
-    'Schools Entrance': 3,
-    'Azteca Entrance': 4,
-    Sealife: 10,
-    'Sweet Shop': 11,
-    'Adventure Point Gift Shop': 12,
-    'Explorer Supplies': 13,
-    "Ben & Jerry's": 14,
-    "Ben & Jerry's Kiosk": 15
-  };
+
+  // Shop units to prioritize before Freestyle & Vending
+  const shopUnits = [
+    'Adventures Point Gift Shop', 'Dragon Treats', 'Sealife', 'Sweet Shop', "Ben & Jerry's", "Ben & Jerry's Kiosk",
+    'Croc Drop Shop', 'Paw Patrol Shop', 'Zufari Barrow', 'Lorikeets', 'Gruffalo Shop', 'Gruffalo Gift Shop', 'Jumanji Shop', 'Shipwreck Kiosk', 'Tiger Kiosk'
+  ];
+  const freestyleUnits = ['Freestyle & Vending', 'Freestyle and Vending', 'Freestyle'];
+
+  // Assign priorities: shops first, then freestyle units
+  const step2UnitPriority = {};
+  let prio = 10;
+  for (const unit of shopUnits) {
+    step2UnitPriority[unit] = prio++;
+  }
+  for (const unit of freestyleUnits) {
+    step2UnitPriority[unit] = 100 + prio++;
+  }
 
   fullShiftAssignments.sort((a, b) => {
-    const priorityA = step2UnitPriority[a.unit] || 99;
-    const priorityB = step2UnitPriority[b.unit] || 99;
+    const priorityA = step2UnitPriority[a.unit] || 999;
+    const priorityB = step2UnitPriority[b.unit] || 999;
     if (priorityA !== priorityB) {
       return priorityA - priorityB;
     }

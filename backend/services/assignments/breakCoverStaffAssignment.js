@@ -99,10 +99,30 @@ function assignBreakCoverStaff({
         ).length;
       };
 
+      // Updated: Prioritize Dragon Treats and Croc Drop Shop for BC base assignment
       const BC_PLACEMENT_PRIORITY = [
+        'Dragon Treats', 'Croc Drop Shop',
         'Adventure Point Gift Shop', 'Sweet Shop', "Ben & Jerry's",
         'Explorer Supplies', 'Sealife Shop', 'Lorikeets'
       ];
+
+      // --- Custom logic: assign first BC to Dragon Treats, second to Croc Drop Shop if both are open ---
+      // Only applies if both units are in requirements and not already covered
+      const bcRetailUnits = ['Dragon Treats', 'Croc Drop Shop'];
+      // Track which BCs have been assigned to these units in this run
+      if (!global._bcRetailAssigned) global._bcRetailAssigned = {};
+      const bcRetailAssigned = global._bcRetailAssigned;
+
+      for (const specialUnit of bcRetailUnits) {
+        const candidateReq = findRetailHostReq(specialUnit);
+        const alreadyAssigned = assignments.some(a => a.unit === specialUnit && a.isBreakCover);
+        if (candidateReq && !alreadyAssigned && !bcRetailAssigned[specialUnit]) {
+          bcBaseUnit = candidateReq.unitName;
+          bcBaseReq = candidateReq;
+          bcRetailAssigned[specialUnit] = true;
+          break;
+        }
+      }
       // Target higher than enforcement minimums so BC staff still get placed
       // APGS target 5 allows both BC persons to base here
       const BC_UNIT_MINIMUMS = {
