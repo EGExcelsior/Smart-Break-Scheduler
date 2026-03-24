@@ -106,8 +106,6 @@ function assignBreakCoverStaff({
         'Explorer Supplies', 'Sealife Shop', 'Lorikeets'
       ];
 
-      // Only skill-gate truly specialized units
-      const SKILL_GATED_BC = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sweet Shop', 'Sealife Shop']);
 
       let bcBaseUnit = null;
       let bcBaseReq = null;
