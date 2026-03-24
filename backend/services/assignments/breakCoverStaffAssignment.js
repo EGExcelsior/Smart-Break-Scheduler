@@ -106,6 +106,12 @@ function assignBreakCoverStaff({
         'Explorer Supplies', 'Sealife Shop', 'Lorikeets'
       ];
 
+      // Only skill-gate truly specialized units
+      const SKILL_GATED_BC = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sweet Shop', 'Sealife Shop']);
+
+      let bcBaseUnit = null;
+      let bcBaseReq = null;
+
       // --- Custom logic: assign first BC to Dragon Treats, second to Croc Drop Shop if both are open ---
       // Only applies if both units are in requirements and not already covered
       const bcRetailUnits = ['Dragon Treats', 'Croc Drop Shop'];
