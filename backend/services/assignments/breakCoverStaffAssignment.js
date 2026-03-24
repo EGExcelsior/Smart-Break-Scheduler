@@ -117,6 +117,10 @@ function assignBreakCoverStaff({
       if (!global._bcRetailAssigned) global._bcRetailAssigned = {};
       const bcRetailAssigned = global._bcRetailAssigned;
 
+
+      let bcBaseUnit = null;
+      let bcBaseReq = null;
+
       for (const specialUnit of bcRetailUnits) {
         const candidateReq = findRetailHostReq(specialUnit);
         const alreadyAssigned = assignments.some(a => a.unit === specialUnit && a.isBreakCover);
@@ -139,9 +143,6 @@ function assignBreakCoverStaff({
       };
       // Only skill-gate truly specialized units
       const SKILL_GATED_BC = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sweet Shop', 'Sealife Shop']);
-
-      let bcBaseUnit = null;
-      let bcBaseReq = null;
 
       console.log(`  🔍 BC placement debug for ${timegripStaff.name}:`);
       for (const unitName of BC_PLACEMENT_PRIORITY) {
