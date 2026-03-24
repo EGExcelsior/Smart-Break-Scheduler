@@ -106,17 +106,12 @@ function assignBreakCoverStaff({
         'Explorer Supplies', 'Sealife Shop', 'Lorikeets'
       ];
 
-
-
-
       // --- Custom logic: assign first BC to Dragon Treats, second to Croc Drop Shop if both are open ---
       // Only applies if both units are in requirements and not already covered
       const bcRetailUnits = ['Dragon Treats', 'Croc Drop Shop'];
       // Track which BCs have been assigned to these units in this run
       if (!global._bcRetailAssigned) global._bcRetailAssigned = {};
       const bcRetailAssigned = global._bcRetailAssigned;
-
-
 
       for (const specialUnit of bcRetailUnits) {
         const candidateReq = findRetailHostReq(specialUnit);
@@ -140,6 +135,9 @@ function assignBreakCoverStaff({
       };
       // Only skill-gate truly specialized units
       const SKILL_GATED_BC = new Set(["Ben & Jerry's", "Ben & Jerry's Kiosk", 'Sweet Shop', 'Sealife Shop']);
+
+      let bcBaseUnit = null;
+      let bcBaseReq = null;
 
       console.log(`  🔍 BC placement debug for ${timegripStaff.name}:`);
       for (const unitName of BC_PLACEMENT_PRIORITY) {
