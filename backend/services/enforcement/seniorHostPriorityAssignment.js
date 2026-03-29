@@ -13,17 +13,31 @@ function applySeniorHostPriorityStep(options) {
 
   log('\n   📍 STEP 1: Assigning Senior Hosts to priority units...');
 
+
   const admissionsUnits = staffingRequirements
     .filter((req) => req.unitName.includes('Entrance') && req.position.includes('Senior Host'))
     .map((req) => req.unitName);
 
-  const priorityUnitsForSeniorHost = [
-    ...new Set([
-      ...admissionsUnits,
-      'Adventure Point Gift Shop',
-      'Sweet Shop'
-    ])
-  ];
+  let priorityUnitsForSeniorHost = [];
+  if (zone && zone.toLowerCase().includes('odyssey')) {
+    priorityUnitsForSeniorHost = [
+      'Paw Patrol Shop',
+      'Freestyle'
+    ];
+  } else if (zone && zone.toLowerCase().includes('phantom')) {
+    priorityUnitsForSeniorHost = [
+      'Gruffalo Shop',
+      'Jumanji Shop'
+    ];
+  } else {
+    priorityUnitsForSeniorHost = [
+      ...new Set([
+        ...admissionsUnits,
+        'Adventure Point Gift Shop',
+        'Sweet Shop'
+      ])
+    ];
+  }
 
   log(`   Priority units for Senior Hosts: ${priorityUnitsForSeniorHost.join(', ')}`);
 
