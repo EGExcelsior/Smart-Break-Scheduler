@@ -223,9 +223,49 @@ router.post('/auto-assign', upload.fields([
               staffingRequirements.push({ unitName, position: 'GHI Front_Desk_Host', staffNeeded: 1 });
               console.log(`   ✅ Added: ${unitName} (GHI Senior Host + Front Desk Host)`);
             } else if (category === 'Retail') {
-              staffingRequirements.push({ unitName, position: 'Retail - Senior Host', staffNeeded: 1 });
-              staffingRequirements.push({ unitName, position: 'Retail Host', staffNeeded: 1 });
-              console.log(`   ✅ Added: ${unitName} (Retail Senior Host + Host)`);
+              // Hardcoded logic for Phantom and Odyssey units
+              const phantomUnits = {
+                'Gruffalo Shop': { seniorHost: [1, 2], host: [1, 2] }, // baseline 1-2 overflow
+                'Jumanji Shop': { seniorHost: [1], host: [1] }, // baseline 1 overflow
+                'Shipwreck Kiosk': { seniorHost: [1], host: [1] }, // baseline 1 overflow
+                'Tiger Kiosk': { seniorHost: [1], host: [1] }, // baseline 1 overflow
+              };
+              const odysseyUnits = {
+                'Croc Shop': { seniorHost: [0], host: [1, 2] }, // baseline 0 overflow
+                "Dragons Treats": { seniorHost: [0], host: [1, 2] }, // baseline 0 overflow
+                'Freestyle & Vending': { seniorHost: [1], host: [1, 2] }, // baseline 1 overflow
+                'Zufari Barrow': { seniorHost: [0], host: [1, 2] }, // baseline 0 overflow
+                'Paw Patrol Shop': { seniorHost: [1], host: [1, 2] }, // same as APGS, defaulting to 1-2
+              };
+              let added = false;
+              if (phantomUnits[unitName]) {
+                // Senior Host
+                phantomUnits[unitName].seniorHost.forEach(() => {
+                  staffingRequirements.push({ unitName, position: 'Retail - Senior Host', staffNeeded: 1 });
+                });
+                // Host
+                phantomUnits[unitName].host.forEach(() => {
+                  staffingRequirements.push({ unitName, position: 'Retail Host', staffNeeded: 1 });
+                });
+                added = true;
+              } else if (odysseyUnits[unitName]) {
+                // Senior Host
+                odysseyUnits[unitName].seniorHost.forEach(() => {
+                  staffingRequirements.push({ unitName, position: 'Retail - Senior Host', staffNeeded: 1 });
+                });
+                // Host
+                odysseyUnits[unitName].host.forEach(() => {
+                  staffingRequirements.push({ unitName, position: 'Retail Host', staffNeeded: 1 });
+                });
+                added = true;
+              }
+              if (added) {
+                console.log(`   ✅ Added: ${unitName} (Retail Senior Host + Host, hardcoded)`);
+              } else {
+                staffingRequirements.push({ unitName, position: 'Retail - Senior Host', staffNeeded: 1 });
+                staffingRequirements.push({ unitName, position: 'Retail Host', staffNeeded: 1 });
+                console.log(`   ✅ Added: ${unitName} (Retail Senior Host + Host)`);
+              }
             }
           } else {
             console.log(`   ⚠️  Skipped: ${unitName} (marked as Closed)`);

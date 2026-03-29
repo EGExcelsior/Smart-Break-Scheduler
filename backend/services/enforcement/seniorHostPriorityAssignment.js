@@ -20,11 +20,13 @@ function applySeniorHostPriorityStep(options) {
 
   let priorityUnitsForSeniorHost = [];
   if (zone && zone.toLowerCase().includes('odyssey')) {
+    // Odyssey Senior: Paw Patrol Shop 1 -> Freestyle 1
     priorityUnitsForSeniorHost = [
       'Paw Patrol Shop',
       'Freestyle'
     ];
   } else if (zone && zone.toLowerCase().includes('phantom')) {
+    // Phantom Senior: Gruffalo Shop 1 -> Jumanji Shop 1
     priorityUnitsForSeniorHost = [
       'Gruffalo Shop',
       'Jumanji Shop'
