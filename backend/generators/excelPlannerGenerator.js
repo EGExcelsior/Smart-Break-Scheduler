@@ -418,70 +418,103 @@ async function generateExcelPlanner(scheduleData) {
   console.log(`📊 Split: ${ridesStaff.length} rides staff, ${retailStaff.length} retail/admissions staff, ${carParksGhiStaff.length} car parks/GHI staff`);
   
   // ========================================================================
-  // RIDES SECTION
+  // CONDITIONAL SECTION ORDERING
   // ========================================================================
-  
-  renderStaffTableSection({
-    worksheet,
-    title: '🎢 RIDES & ATTRACTIONS',
-    titleColor: 'FF5B9BD5',
-    staffNames: ridesStaff,
-    timeSlots,
-    rowHeight: 35,
-    assignments,
-    explorerUnits,
-    explorerColor,
-    seniorHostStaff,
-    useExplorerHighlight: true,
-    breakBorderWithBlack: true,
-    postSpacerHeight: 10
-  });
-  
-  // ========================================================================
-  // RETAIL / ADMISSIONS / GHI SECTION
-  // ========================================================================
-  
-  renderStaffTableSection({
-    worksheet,
-    title: '🛍️ RETAIL / ADMISSIONS',
-    titleColor: 'FF70AD47',
-    staffNames: retailStaff,
-    timeSlots,
-    rowHeight: 25,
-    assignments,
-    explorerUnits,
-    explorerColor,
-    seniorHostStaff,
-    useExplorerHighlight: true,
-    breakBorderWithBlack: true
-  });
-  
-  
-  // ========================================================================
-  // UNASSIGNED STAFF SECTION
-  // ========================================================================
-  
-  renderUnassignedSection(worksheet, staffList, TOP_SECTION_END_COL);
-  
-  // ========================================================================
-  // CAR PARKS & GHI SECTION
-  // ========================================================================
-
-  renderStaffTableSection({
-    worksheet,
-    title: '🅿️ CAR PARKS & GHI',
-    titleColor: 'FF70AD47',
-    staffNames: carParksGhiStaff,
-    timeSlots,
-    rowHeight: 25,
-    assignments,
-    explorerUnits,
-    explorerColor,
-    seniorHostStaff,
-    useExplorerHighlight: false,
-    breakBorderWithBlack: false,
-    preSpacerHeight: 12
-  });
+  const zoneName = (scheduleData.teamName || '').toLowerCase();
+  const isNexusOrCentral = zoneName.includes('nexus') || zoneName.includes('central');
+  if (isNexusOrCentral) {
+    // Rides, then Car Parks & GHI, then Retail at the bottom
+    renderStaffTableSection({
+      worksheet,
+      title: '🎢 RIDES & ATTRACTIONS',
+      titleColor: 'FF5B9BD5',
+      staffNames: ridesStaff,
+      timeSlots,
+      rowHeight: 35,
+      assignments,
+      explorerUnits,
+      explorerColor,
+      seniorHostStaff,
+      useExplorerHighlight: true,
+      breakBorderWithBlack: true,
+      postSpacerHeight: 10
+    });
+    renderStaffTableSection({
+      worksheet,
+      title: '🅿️ CAR PARKS & GHI',
+      titleColor: 'FF70AD47',
+      staffNames: carParksGhiStaff,
+      timeSlots,
+      rowHeight: 25,
+      assignments,
+      explorerUnits,
+      explorerColor,
+      seniorHostStaff,
+      useExplorerHighlight: false,
+      breakBorderWithBlack: false,
+      preSpacerHeight: 12
+    });
+    renderStaffTableSection({
+      worksheet,
+      title: '🛍️ RETAIL / ADMISSIONS',
+      titleColor: 'FF70AD47',
+      staffNames: retailStaff,
+      timeSlots,
+      rowHeight: 25,
+      assignments,
+      explorerUnits,
+      explorerColor,
+      seniorHostStaff,
+      useExplorerHighlight: true,
+      breakBorderWithBlack: true
+    });
+  } else {
+    // Default: Rides, then Retail, then Car Parks & GHI
+    renderStaffTableSection({
+      worksheet,
+      title: '🎢 RIDES & ATTRACTIONS',
+      titleColor: 'FF5B9BD5',
+      staffNames: ridesStaff,
+      timeSlots,
+      rowHeight: 35,
+      assignments,
+      explorerUnits,
+      explorerColor,
+      seniorHostStaff,
+      useExplorerHighlight: true,
+      breakBorderWithBlack: true,
+      postSpacerHeight: 10
+    });
+    renderStaffTableSection({
+      worksheet,
+      title: '🛍️ RETAIL / ADMISSIONS',
+      titleColor: 'FF70AD47',
+      staffNames: retailStaff,
+      timeSlots,
+      rowHeight: 25,
+      assignments,
+      explorerUnits,
+      explorerColor,
+      seniorHostStaff,
+      useExplorerHighlight: true,
+      breakBorderWithBlack: true
+    });
+    renderStaffTableSection({
+      worksheet,
+      title: '🅿️ CAR PARKS & GHI',
+      titleColor: 'FF70AD47',
+      staffNames: carParksGhiStaff,
+      timeSlots,
+      rowHeight: 25,
+      assignments,
+      explorerUnits,
+      explorerColor,
+      seniorHostStaff,
+      useExplorerHighlight: false,
+      breakBorderWithBlack: false,
+      preSpacerHeight: 12
+    });
+  }
 
   // ========================================================================
   // FORMATTING
