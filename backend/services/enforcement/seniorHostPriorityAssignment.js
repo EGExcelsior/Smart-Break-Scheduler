@@ -45,26 +45,18 @@ function applySeniorHostPriorityStep(options) {
 
   let assignedCount = 0;
 
+  // Assign all available senior hosts to priority units in order
+  const unassignedSeniors = staffByType.seniorHostsFullShift.filter((staff) => !assignedStaff.has(staff.name));
+  let seniorIndex = 0;
   for (const unitName of priorityUnitsForSeniorHost) {
     const req = staffingRequirements.find((requirement) =>
       requirement.unitName === unitName && requirement.position.includes('Senior Host')
     );
-
-    if (!req) {
-      continue;
-    }
-
+    if (!req) continue;
     const unitPositionKey = `${req.unitName}-${req.position}`;
-    if ((filledPositions.get(unitPositionKey) || 0) >= req.staffNeeded) {
-      log(`   ✅ ${unitName}: Already has Senior Host`);
-      continue;
-    }
-
-    const availableSenior = staffByType.seniorHostsFullShift.find(
-      (staff) => !assignedStaff.has(staff.name)
-    );
-
-    if (availableSenior) {
+    let filled = filledPositions.get(unitPositionKey) || 0;
+    while (filled < req.staffNeeded && seniorIndex < unassignedSeniors.length) {
+      const availableSenior = unassignedSeniors[seniorIndex];
       assignments.push({
         unit: req.unitName,
         position: req.position,
@@ -79,11 +71,12 @@ function applySeniorHostPriorityStep(options) {
         isBreak: false,
         category: getCategoryFromUnit(req.unitName)
       });
-
       assignedStaff.add(availableSenior.name);
-      filledPositions.set(unitPositionKey, (filledPositions.get(unitPositionKey) || 0) + 1);
+      filled++;
+      filledPositions.set(unitPositionKey, filled);
       assignedCount += 1;
       log(`   ✅ ${availableSenior.name} → ${unitName} (Senior Host, ${availableSenior.startTime}-${availableSenior.endTime})`);
+      seniorIndex++;
     }
   }
 
