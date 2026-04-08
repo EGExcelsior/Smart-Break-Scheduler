@@ -11,10 +11,7 @@ function getUnitCategory(unitName) {
   const lower = unitName.toLowerCase();
 
   if (lower.includes('entrance') || lower.includes('admissions')) return 'Admissions';
-  // Group Sweet Shop and Ben & Jerry's together as 'Sweet/B&Js'
-  if (lower.includes('sweet shop') || lower.includes("ben & jerry's")) {
-    return 'Sweet/B&Js';
-  }
+  // Sweet Shop and Ben & Jerry's are Retail
   if (
     lower.includes('shop') ||
     lower.includes('retail') ||
@@ -77,12 +74,11 @@ function groupStaffByUnit(assignments, staffList) {
 function getSortedUnits(unitGroups) {
   const categoryOrder = {
     Rides: 1,
-    'Sweet/B&Js': 2,
-    Retail: 3,
-    Admissions: 4,
-    'Car Parks': 5,
-    GHI: 6,
-    'Break Cover': 7
+    Retail: 2,
+    Admissions: 3,
+    'Car Parks': 4,
+    GHI: 5,
+    'Break Cover': 6
   };
 
   return Array.from(unitGroups.keys()).sort((a, b) => {
