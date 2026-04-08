@@ -125,16 +125,38 @@ const FUNCTION_TO_UNIT_MAP = {
 function getSpecificUnitFromFunction(plannedFunction) {
   if (!plannedFunction) return null;
 
+  // Robust partial match for entrance units and Senior Host roles
+  const ENTRANCE_UNITS = [
+    'Lodge Entrance',
+    'Explorer Entrance',
+    'Schools Entrance',
+    'Azteca Entrance',
+    'Adventure Point Gift Shop',
+    'AP Gift Shop'
+  ];
+  const pfLower = plannedFunction.toLowerCase();
+  // Try to match entrance units by partial name
+  for (const unit of ENTRANCE_UNITS) {
+    if (pfLower.includes(unit.toLowerCase().replace('ap gift shop', 'adventure point gift shop'))) {
+      return unit;
+    }
+    // Also match common abbreviations
+    if (unit === 'Adventure Point Gift Shop' && (pfLower.includes('ap gift shop') || pfLower.includes('adventure point gift shop'))) {
+      return 'Adventure Point Gift Shop';
+    }
+  }
+
+  // Fallback to FUNCTION_TO_UNIT_MAP for other units
   for (const [key, unit] of Object.entries(FUNCTION_TO_UNIT_MAP)) {
     if (plannedFunction.includes(key)) {
       return unit;
     }
   }
 
+  // Ignore generic retail/admissions planned functions
   if (plannedFunction.includes('Retail') && (plannedFunction.includes('Host') || plannedFunction.includes('Senior'))) {
     return null;
   }
-
   if (plannedFunction.includes('Admissions') && plannedFunction.includes('Host')) {
     return null;
   }
