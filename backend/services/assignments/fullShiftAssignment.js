@@ -17,11 +17,22 @@ function assignFullShiftHostsStep2(options) {
 
   let assignedCount = 0;
 
-  // Identify entrance units that require Senior Hosts
+  // Identify entrance units that require Senior Hosts (robust partial match)
   const ENTRANCE_UNITS = ['Lodge Entrance', 'Explorer Entrance', 'Schools Entrance', 'Azteca Entrance'];
-  const entranceSeniorHostReqs = fullShiftAssignments.filter(a =>
-    ENTRANCE_UNITS.includes(a.req.unitName) && a.req.position && a.req.position.includes('Senior Host')
-  );
+  // Helper: returns true if string contains all words (case-insensitive)
+  function containsAllWords(str, words) {
+    if (!str) return false;
+    const lower = str.toLowerCase();
+    return words.every(w => lower.includes(w.toLowerCase()));
+  }
+  // Robustly match entrance units and Senior Host positions (allowing partials)
+  const entranceSeniorHostReqs = fullShiftAssignments.filter(a => {
+    // Match if unitName contains any entrance name (partial, case-insensitive)
+    const isEntrance = ENTRANCE_UNITS.some(unit => a.req.unitName && a.req.unitName.toLowerCase().includes(unit.toLowerCase()));
+    // Match if position contains both 'senior' and 'host' (partial, case-insensitive)
+    const isSeniorHost = containsAllWords(a.req.position, ['senior', 'host']);
+    return isEntrance && isSeniorHost;
+  });
 
   // Assign Senior Hosts to entrances first
   for (const assignment of entranceSeniorHostReqs) {
