@@ -785,38 +785,88 @@ router.post('/auto-assign', upload.fields([
       }
     }
 
+
+    // Fallback: Assign Host/Senior Host to any open entrance/admissions slot if possible (ignore retail-matching planned functions)
     for (const timegripStaff of allWorkingStaff) {
       if (!uniqueStaffNames.has(timegripStaff.name)) {
-        uniqueStaffNames.add(timegripStaff.name);
+        const plannedFunc = (timegripStaff.plannedFunction || '').toLowerCase();
+        const isSenior = plannedFunc.includes('senior');
+        const isHost = plannedFunc.includes('host');
+        const isRetail = /retail|shop|gift shop|sweet shop|supplies|b&j|ben & jerry|explorer supplies/.test(plannedFunc);
 
-        let reason = 'No suitable positions available';
-        const timegripFunc = timegripStaff.scheduledFunction || '';
-
-        if (timegripFunc.includes('Car Parks')) {
-          reason = 'Car Parks - Staff Car Park position already fully staffed (1/1)';
-        } else if (timegripFunc.includes('GHI Front Desk')) {
-          reason = 'GHI - Hub position already fully staffed (1/1)';
-        } else if (timegripFunc.includes('Generic')) {
-          reason = 'No unfilled Rides positions matching generic classification';
-        } else if (timegripFunc.includes('Retail')) {
-          reason = 'No unfilled retail positions available';
-        } else if (timegripFunc.includes('Admissions')) {
-          reason = 'No unfilled Admissions positions available';
-        } else {
-          const startTime = timegripStaff.startTime;
-          const endTime = timegripStaff.endTime;
-          const hoursWorking = (parseInt(endTime.split(':')[0]) * 60 + parseInt(endTime.split(':')[1])) -
-                               (parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]));
-          if (hoursWorking < 300) {
-            reason = `No unfilled positions matching shift times (${startTime}-${endTime})`;
+        let assignedViaFallback = false;
+        if ((isSenior || isHost) && !isRetail) {
+          // Find any open entrance/admissions slot
+          const admissionsReqs = staffingRequirements.filter(req => {
+            const unit = req.unitName.toLowerCase();
+            const pos = req.position.toLowerCase();
+            const isEntrance = unit.includes('entrance') || unit.includes('admissions');
+            const needsSenior = pos.includes('senior host');
+            const needsHost = pos.includes('host') && !pos.includes('senior');
+            const unitPositionKey = `${req.unitName}-${req.position}`;
+            const filled = (filledPositions.get(unitPositionKey) || 0);
+            const open = filled < req.staffNeeded;
+            if (isSenior && needsSenior && isEntrance && open) return true;
+            if (!isSenior && isHost && needsHost && isEntrance && open) return true;
+            return false;
+          });
+          if (admissionsReqs.length > 0) {
+            // Assign to the first available slot
+            const req = admissionsReqs[0];
+            assignments.push({
+              unit: req.unitName,
+              position: req.position,
+              positionType: isSenior ? 'Senior Host (Fallback)' : 'Host (Fallback)',
+              staff: timegripStaff.name,
+              zone,
+              dayCode,
+              trainingMatch: `${req.unitName}-${req.position}`,
+              startTime: timegripStaff.startTime,
+              endTime: timegripStaff.endTime,
+              breakMinutes: timegripStaff.scheduledBreakMinutes || 0,
+              isBreak: false,
+              category: getCategoryFromUnit(req.unitName)
+            });
+            assignedStaff.add(timegripStaff.name);
+            const unitPosKey = `${req.unitName}-${req.position}`;
+            filledPositions.set(unitPosKey, (filledPositions.get(unitPosKey) || 0) + 1);
+            uniqueStaffNames.add(timegripStaff.name);
+            assignedViaFallback = true;
           }
         }
-
-        sortedStaffList.push({
-          name: timegripStaff.name,
-          unassigned: true,
-          reason: reason
-        });
+        if (!assignedViaFallback) {
+          uniqueStaffNames.add(timegripStaff.name);
+          let reason = 'No suitable positions available';
+          const timegripFunc = timegripStaff.scheduledFunction || timegripStaff.plannedFunction || '';
+          if (timegripFunc.includes('Car Parks')) {
+            reason = 'Car Parks - Staff Car Park position already fully staffed (1/1)';
+          } else if (timegripFunc.includes('GHI Front Desk')) {
+            reason = 'GHI - Hub position already fully staffed (1/1)';
+          } else if (timegripFunc.includes('Generic')) {
+            reason = 'No unfilled Rides positions matching generic classification';
+          } else if (timegripFunc.includes('Retail')) {
+            reason = 'No unfilled retail positions available';
+          } else if (timegripFunc.includes('Admissions')) {
+            reason = 'No unfilled Admissions positions available';
+          } else if (timegripFunc.toLowerCase().includes('host')) {
+            reason = 'No open Host/Senior Host slots available';
+          } else if (timegripFunc.toLowerCase().includes('break cover')) {
+            reason = 'No open Break Cover slots available';
+          } else {
+            const startTime = timegripStaff.startTime;
+            const endTime = timegripStaff.endTime;
+            const hoursWorking = (parseInt(endTime.split(':')[0]) * 60 + parseInt(endTime.split(':')[1])) -
+                                 (parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]));
+            if (hoursWorking < 300) {
+              reason = `No unfilled positions matching shift times (${startTime}-${endTime})`;
+            }
+          }
+          sortedStaffList.push({
+            name: timegripStaff.name,
+            unassigned: true,
+            reason: reason
+          });
+        }
       }
     }
 
