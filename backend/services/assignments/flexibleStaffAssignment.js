@@ -153,6 +153,10 @@ function assignRemainingGenericStaff({
     if (req.unitName === 'Azteca Entrance' && req.endTime && req.endTime > '10:00') {
       return false;
     }
+    // Enforce hard cap of 3 for Explorer Supplies
+    if (req.unitName === 'Explorer Supplies' && filled >= 3) {
+      return false;
+    }
     return filled < req.staffNeeded && !req.position.toLowerCase().includes('break cover');
   });
 
