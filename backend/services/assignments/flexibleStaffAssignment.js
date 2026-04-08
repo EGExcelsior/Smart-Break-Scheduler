@@ -149,6 +149,10 @@ function assignRemainingGenericStaff({
   console.log('\n📋 PASS 3: Flexible Generic Skill Matching');
   const stillUnfilled = staffingRequirements.filter(req => {
     const filled = filledPositions.get(req.position) || 0;
+    // Prevent assignments to Azteca Entrance after 10:00
+    if (req.unitName === 'Azteca Entrance' && req.endTime && req.endTime > '10:00') {
+      return false;
+    }
     return filled < req.staffNeeded && !req.position.toLowerCase().includes('break cover');
   });
 
