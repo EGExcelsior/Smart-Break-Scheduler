@@ -11,8 +11,10 @@ function getUnitCategory(unitName) {
   const lower = unitName.toLowerCase();
 
   if (lower.includes('entrance') || lower.includes('admissions')) return 'Admissions';
-  // Sweet Shop and Ben & Jerry's are Retail
+  // Always treat Sweet Shop and Ben & Jerry's as Retail
   if (
+    lower.includes('ben & jerry') ||
+    lower.includes('sweet shop') ||
     lower.includes('shop') ||
     lower.includes('retail') ||
     lower.includes('kiosk') ||
