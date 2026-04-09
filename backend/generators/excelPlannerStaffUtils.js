@@ -48,18 +48,32 @@ function groupStaffByUnit(assignments, staffList) {
 
     if (staffAssignments.length === 0) continue;
 
-    // Ignore temporary early opening stints when selecting primary grouping unit.
-    const skipAsPrimary = new Set(['Azteca Entrance']);
-    const sortedByStart = staffAssignments.slice().sort((a, b) => {
-      const toMins = (t) => {
-        const [h, m] = t.split(':').map(Number);
-        return h * 60 + m;
-      };
-      return toMins(a.startTime) - toMins(b.startTime);
-    });
-    const firstNonTemp = sortedByStart.find((a) => !skipAsPrimary.has(a.unit));
-    const primaryUnit = firstNonTemp?.unit || sortedByStart[0]?.unit || null;
-
+    // Use the longest assignment (by duration) as the primary grouping unit.
+    // If tie, prefer Retail/Admissions over Rides.
+    let maxDuration = -1;
+    let candidateUnits = [];
+    for (const a of staffAssignments) {
+      if (a.unit === 'Azteca Entrance') continue; // skip temporary early opening stints
+      const [sh, sm] = a.startTime.split(':').map(Number);
+      const [eh, em] = a.endTime.split(':').map(Number);
+      const duration = (eh * 60 + em) - (sh * 60 + sm);
+      if (duration > maxDuration) {
+        maxDuration = duration;
+        candidateUnits = [a.unit];
+      } else if (duration === maxDuration) {
+        candidateUnits.push(a.unit);
+      }
+    }
+    let primaryUnit = null;
+    if (candidateUnits.length === 1) {
+      primaryUnit = candidateUnits[0];
+    } else if (candidateUnits.length > 1) {
+      // Prefer Retail/Admissions over Rides in case of tie
+      primaryUnit = candidateUnits.find(u => {
+        const cat = getUnitCategory(u);
+        return cat === 'Retail' || cat === 'Admissions';
+      }) || candidateUnits[0];
+    }
     if (primaryUnit) {
       if (!unitGroups.has(primaryUnit)) {
         unitGroups.set(primaryUnit, []);

@@ -74,7 +74,7 @@ function assignOverflowStaffStep5({
       'Adventure Point Gift Shop': 3,
       'Sweet Shop': 2,
       'Sealife': 1,
-      'Explorer Supplies': 2,
+      'Explorer Supplies': 3,
       'Ben & Jerry\'s': 2,
       'Ben & Jerry\'s Kiosk': 1,
       'Lorikeets': 1
@@ -88,7 +88,7 @@ function assignOverflowStaffStep5({
       'Adventure Point Gift Shop': 3,
       'Sweet Shop': 2,
       'Sealife': 1,
-      'Explorer Supplies': 2,
+      'Explorer Supplies': 3,
       'Ben & Jerry\'s': 2,
       'Ben & Jerry\'s Kiosk': 1,
       'Lorikeets': 1
@@ -102,7 +102,7 @@ function assignOverflowStaffStep5({
       'Adventure Point Gift Shop': 3,
       'Sweet Shop': 2,
       'Sealife': 1,
-      'Explorer Supplies': 2,
+      'Explorer Supplies': 3,
       'Ben & Jerry\'s': 2,
       'Ben & Jerry\'s Kiosk': 1,
       'Lorikeets': 1
@@ -114,7 +114,7 @@ function assignOverflowStaffStep5({
       // Azteca excluded — closes at 10:00, staffed by pre-pass only
       'Adventure Point Gift Shop': 3,
       'Sweet Shop': 2,
-      'Explorer Supplies': 1,
+      'Explorer Supplies': 2,
       'Sealife': 1,
       'Ben & Jerry\'s': 2,
       'Ben & Jerry\'s Kiosk': 1,
