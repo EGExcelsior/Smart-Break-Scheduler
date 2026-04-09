@@ -36,6 +36,11 @@ const {
 } = require('./excelPlannerStaffUtils');
 const { buildSignificantTimeSlots } = require('./excelPlannerTimeUtils');
 
+const PLANNER_STAFF_ROW_HEIGHT = 35;
+const PLANNER_SECTION_TITLE_ROW_HEIGHT = 30;
+const PLANNER_HEADER_ROW_HEIGHT = 22;
+const PLANNER_TIME_COLUMN_WIDTH = 11;
+
 // Helper function to check if a staff member is a Senior Host (with fuzzy name matching)
 function isSeniorHost(staffName, seniorHostList) {
   if (!seniorHostList || seniorHostList.length === 0) return false;
@@ -287,14 +292,14 @@ function renderStaffTableSection({
   sectionCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: titleColor } };
   worksheet.mergeCells(`A${sectionRow.number}:${lastColLetter}${sectionRow.number}`);
   sectionCell.alignment = { horizontal: 'center', vertical: 'middle' };
-  sectionRow.height = 25;
+  sectionRow.height = PLANNER_SECTION_TITLE_ROW_HEIGHT;
 
   const headerRow = worksheet.addRow(['STAFF NAME', ...timeSlots]);
   const headerRowObj = worksheet.getRow(headerRow.number);
   headerRowObj.font = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } };
   headerRowObj.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
   headerRowObj.alignment = { horizontal: 'center', vertical: 'middle' };
-  headerRowObj.height = 18;
+  headerRowObj.height = PLANNER_HEADER_ROW_HEIGHT;
 
   const lookup = buildStaffTimeLookup(assignments, staffNames, timeSlots);
 
@@ -430,7 +435,7 @@ async function generateExcelPlanner(scheduleData) {
       titleColor: 'FF5B9BD5',
       staffNames: ridesStaff,
       timeSlots,
-      rowHeight: 35,
+      rowHeight: PLANNER_STAFF_ROW_HEIGHT,
       assignments,
       explorerUnits,
       explorerColor,
@@ -445,7 +450,7 @@ async function generateExcelPlanner(scheduleData) {
       titleColor: 'FF70AD47',
       staffNames: carParksGhiStaff,
       timeSlots,
-      rowHeight: 25,
+      rowHeight: PLANNER_STAFF_ROW_HEIGHT,
       assignments,
       explorerUnits,
       explorerColor,
@@ -460,7 +465,7 @@ async function generateExcelPlanner(scheduleData) {
       titleColor: 'FF70AD47',
       staffNames: retailStaff,
       timeSlots,
-      rowHeight: 25,
+      rowHeight: PLANNER_STAFF_ROW_HEIGHT,
       assignments,
       explorerUnits,
       explorerColor,
@@ -476,7 +481,7 @@ async function generateExcelPlanner(scheduleData) {
       titleColor: 'FF5B9BD5',
       staffNames: ridesStaff,
       timeSlots,
-      rowHeight: 35,
+      rowHeight: PLANNER_STAFF_ROW_HEIGHT,
       assignments,
       explorerUnits,
       explorerColor,
@@ -491,7 +496,7 @@ async function generateExcelPlanner(scheduleData) {
       titleColor: 'FF70AD47',
       staffNames: retailStaff,
       timeSlots,
-      rowHeight: 25,
+      rowHeight: PLANNER_STAFF_ROW_HEIGHT,
       assignments,
       explorerUnits,
       explorerColor,
@@ -505,7 +510,7 @@ async function generateExcelPlanner(scheduleData) {
       titleColor: 'FF70AD47',
       staffNames: carParksGhiStaff,
       timeSlots,
-      rowHeight: 25,
+      rowHeight: PLANNER_STAFF_ROW_HEIGHT,
       assignments,
       explorerUnits,
       explorerColor,
@@ -522,7 +527,7 @@ async function generateExcelPlanner(scheduleData) {
   
   worksheet.getColumn(1).width = 22;
   for (let i = 2; i <= timeSlots.length + 1; i++) {
-    worksheet.getColumn(i).width = 11;
+    worksheet.getColumn(i).width = PLANNER_TIME_COLUMN_WIDTH;
   }
   
   // ========================================================================
