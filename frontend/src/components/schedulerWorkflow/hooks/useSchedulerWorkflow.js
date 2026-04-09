@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { TEAM_TO_ZONE_MAP, VALID_EXTENSIONS } from '../config/config';
 import {
   autoAssign,
   downloadExcelFile,
+  fetchApiHealth,
   fetchDayCodesForZone,
   fetchUnitStatus,
   parseAndAnalyze
@@ -78,6 +79,29 @@ const useSchedulerWorkflow = () => {
   const [includedAbsentStaff, setIncludedAbsentStaff] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [apiHealth, setApiHealth] = useState({ checked: false, healthy: true, message: '' });
+
+  const checkApiHealth = async () => {
+    try {
+      const response = await fetchApiHealth();
+      const healthy = Boolean(response?.success);
+      setApiHealth({
+        checked: true,
+        healthy,
+        message: healthy ? '' : 'API health check failed. Please verify backend service availability.'
+      });
+    } catch (requestError) {
+      setApiHealth({
+        checked: true,
+        healthy: false,
+        message: requestError.message || 'Unable to reach backend API.'
+      });
+    }
+  };
+
+  useEffect(() => {
+    checkApiHealth();
+  }, []);
 
   const runWithLoading = async (operation) => {
     setLoading(true);
@@ -335,6 +359,7 @@ const useSchedulerWorkflow = () => {
       includedAbsentStaff,
       loading,
       error,
+      apiHealth,
       canProceedStep1,
       canProceedStep2,
       canProceedStep3
@@ -344,6 +369,7 @@ const useSchedulerWorkflow = () => {
       setDate,
       setDayCode,
       setError,
+      checkApiHealth,
       handleFileSelect,
       handleFileDrop,
       handleDragOver,

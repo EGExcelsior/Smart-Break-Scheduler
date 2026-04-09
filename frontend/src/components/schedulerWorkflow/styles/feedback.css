@@ -382,3 +382,56 @@
   color: var(--mw-brand-500);
   font-weight: 500;
 }
+
+.api-health-banner {
+  max-width: 860px;
+  margin: 0 auto 1.5rem;
+  padding: 1rem 1.1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(201, 122, 43, 0.3);
+  background: linear-gradient(135deg, rgba(255, 248, 236, 0.95), rgba(250, 237, 215, 0.92));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.api-health-banner__content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.api-health-banner__icon {
+  font-size: 20px;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.api-health-banner__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #e65100;
+}
+
+.api-health-banner__message {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: #8a4300;
+}
+
+.api-health-banner__retry {
+  border: 1px solid rgba(201, 122, 43, 0.44);
+  background: rgba(255, 255, 255, 0.9);
+  color: #8a4300;
+  border-radius: 10px;
+  padding: 0.45rem 0.72rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.api-health-banner__retry:hover {
+  background: rgba(255, 255, 255, 1);
+}

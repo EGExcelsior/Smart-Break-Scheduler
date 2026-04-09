@@ -5,6 +5,7 @@ import UnitSelection from './schedulerWorkflow/screens/UnitSelection';
 import UploadConfiguration from './schedulerWorkflow/screens/UploadConfiguration';
 import WorkflowCompletion from './schedulerWorkflow/screens/WorkflowCompletion';
 import { STEP_LABELS } from './schedulerWorkflow/config/config';
+import ApiHealthBanner from './schedulerWorkflow/ui/ApiHealthBanner';
 import ErrorMessage from './schedulerWorkflow/ui/ErrorMessage';
 import ProgressBar from './schedulerWorkflow/ui/ProgressBar';
 import useSchedulerWorkflow from './schedulerWorkflow/hooks/useSchedulerWorkflow';
@@ -40,6 +41,7 @@ const SchedulerWorkflow = () => {
       includedAbsentStaff,
       loading,
       error,
+      apiHealth,
       canProceedStep1,
       canProceedStep2,
       canProceedStep3
@@ -49,6 +51,7 @@ const SchedulerWorkflow = () => {
       setDate,
       setDayCode,
       setError,
+      checkApiHealth,
       handleFileSelect,
       handleFileDrop,
       handleDragOver,
@@ -74,6 +77,7 @@ const SchedulerWorkflow = () => {
     <div className="modern-workflow">
       <section className="workflow-shell">
         <ProgressBar currentStep={currentStep} />
+        <ApiHealthBanner apiHealth={apiHealth} onRetry={checkApiHealth} />
         <ErrorMessage error={error} onDismiss={() => setError(null)} />
 
         {currentStep === 1 && (

@@ -1,11 +1,29 @@
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 const parseJsonResponse = async (response) => {
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.error || 'Request failed');
+  const contentType = response.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+
+  if (isJson) {
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Request failed (${response.status})`);
+    }
+    return data;
   }
-  return data;
+
+  const rawBody = await response.text();
+  const trimmedBody = rawBody.trim();
+  const looksLikeHtml = trimmedBody.startsWith('<!DOCTYPE html') || trimmedBody.startsWith('<html');
+  const serverHint = looksLikeHtml
+    ? 'Received HTML instead of JSON. Check that the backend API is running and the request URL/proxy is correct.'
+    : 'Received non-JSON response from server.';
+
+  const detail = trimmedBody
+    ? ` Response starts with: ${trimmedBody.slice(0, 120).replace(/\s+/g, ' ')}`
+    : '';
+
+  throw new Error(`${serverHint} [${response.status} ${response.statusText}] ${response.url}.${detail}`);
 };
 
 const postJson = async (url, payload) => {
@@ -22,6 +40,15 @@ const postFormData = async (url, formData) => {
   const response = await fetch(url, {
     method: 'POST',
     body: formData
+  });
+
+  return parseJsonResponse(response);
+};
+
+export const fetchApiHealth = async () => {
+  const response = await fetch('/api/health', {
+    method: 'GET',
+    cache: 'no-store'
   });
 
   return parseJsonResponse(response);
