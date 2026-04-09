@@ -441,8 +441,7 @@ async function generateExcelPlanner(scheduleData) {
       explorerColor,
       seniorHostStaff,
       useExplorerHighlight: true,
-      breakBorderWithBlack: true,
-      postSpacerHeight: 10
+      breakBorderWithBlack: true
     });
     renderStaffTableSection({
       worksheet,
@@ -456,8 +455,7 @@ async function generateExcelPlanner(scheduleData) {
       explorerColor,
       seniorHostStaff,
       useExplorerHighlight: false,
-      breakBorderWithBlack: false,
-      preSpacerHeight: 12
+      breakBorderWithBlack: false
     });
     renderStaffTableSection({
       worksheet,
@@ -487,8 +485,7 @@ async function generateExcelPlanner(scheduleData) {
       explorerColor,
       seniorHostStaff,
       useExplorerHighlight: true,
-      breakBorderWithBlack: true,
-      postSpacerHeight: 10
+      breakBorderWithBlack: true
     });
     renderStaffTableSection({
       worksheet,
@@ -516,8 +513,7 @@ async function generateExcelPlanner(scheduleData) {
       explorerColor,
       seniorHostStaff,
       useExplorerHighlight: false,
-      breakBorderWithBlack: false,
-      preSpacerHeight: 12
+      breakBorderWithBlack: false
     });
   }
 
