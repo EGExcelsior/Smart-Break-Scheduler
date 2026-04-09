@@ -281,6 +281,7 @@ function assignOverflowStaffStep5({
   console.log(`   📋 Available units: ${availableUnits.join(', ')}`);
 
 
+
   for (const staff of overflowStaff) {
     if (assignedStaff.has(staff.name)) continue;
 
@@ -290,7 +291,6 @@ function assignOverflowStaffStep5({
     // ✅ SHORT-SHIFT STAFF (Home @1 - finish ≤14:00) → ALWAYS go to Lodge Entrance
     const endHour = parseInt(staff.endTime.split(':')[0]);
     if (endHour <= 14) {
-      // ALL short-shift staff go to Lodge (no cap for Home @1)
       if (availableUnits.includes('Lodge Entrance')) {
         targetUnit = 'Lodge Entrance';
         positionLabel = 'Host (Morning)';
@@ -300,18 +300,17 @@ function assignOverflowStaffStep5({
       }
     }
 
-      // Prevent assignment to Azteca after 10:00 (should only be handled by pre-pass)
-      const AZTECA_UNIT = 'Azteca Entrance';
-      const AZTECA_CLOSE_MINUTE = timeToMinutes('10:00');
+    // Prevent assignment to Azteca after 10:00 (should only be handled by pre-pass)
+    const AZTECA_UNIT = 'Azteca Entrance';
 
     // If no target yet (either full-shift or Lodge not available/at cap for short-shift)
     if (!targetUnit) {
       const staffStartMinute = timeToMinutes(staff.startTime);
       const staffEndMinute = timeToMinutes(staff.endTime);
 
-        // Exclude Azteca from all overflow/fallback assignments after 10:00
-        const filteredPriorityOrder = PRIORITY_ORDER.filter(unit => unit !== AZTECA_UNIT);
-        const filteredAvailableUnits = availableUnits.filter(unit => unit !== AZTECA_UNIT);
+      // Exclude Azteca from all overflow/fallback assignments after 10:00
+      const filteredPriorityOrder = PRIORITY_ORDER.filter(unit => unit !== AZTECA_UNIT);
+      const filteredAvailableUnits = availableUnits.filter(unit => unit !== AZTECA_UNIT);
 
       // Enforce: Do not assign to Freestyle & Vending until all shop units are fully staffed
       const allShopUnitsFilled = shopUnits.every(unit => {
@@ -320,72 +319,31 @@ function assignOverflowStaffStep5({
         return assignedNow >= demand;
       });
 
-      let bestPhase1Score = Number.NEGATIVE_INFINITY;
-        for (const unitName of filteredPriorityOrder) {
-          // If this is a Freestyle unit and not all shop units are filled, skip
-          if (/freestyle/i.test(unitName) && !allShopUnitsFilled) continue;
-          if (!canStaffWorkUnit(staff.name, unitName)) continue;
-          // Prevent assigning before unit opening time
-          const openingMinute = getOpeningMinuteForUnit(unitName);
-          if (staffStartMinute < openingMinute) continue;
-          const score = getPhase1UnitScore(unitName, staffStartMinute, staffEndMinute);
-          if (score > bestPhase1Score) {
-            bestPhase1Score = score;
-            targetUnit = unitName;
-          }
-        }
+      // Only consider units that are below their cap
+      const eligibleUnits = filteredPriorityOrder.filter(unitName => {
+        const unitCap = UNIT_OVERFLOW_TARGETS[unitName] || 2;
+        const currentOverflow = overflowCount[unitName] || 0;
+        return currentOverflow < unitCap;
+      });
 
-      // ✅ If all priority units at cap/ineligible, try all available units by fair score
-      if (!targetUnit) {
-        let bestPhase2Score = Number.NEGATIVE_INFINITY;
-          for (const unitName of filteredAvailableUnits) {
-            // If this is a Freestyle unit and not all shop units are filled, skip
-            if (/freestyle/i.test(unitName) && !allShopUnitsFilled) continue;
-            if (!canStaffWorkUnit(staff.name, unitName)) continue;
-            // Prevent assigning before unit opening time
-            const openingMinute = getOpeningMinuteForUnit(unitName);
-            if (staffStartMinute < openingMinute) continue;
-            const score = getPhase2UnitScore(unitName, staffEndMinute);
-            if (score > bestPhase2Score) {
-              bestPhase2Score = score;
-              targetUnit = unitName;
-            }
-          }
-
-        if (targetUnit) {
-          console.log(`   📌 ${staff.name}: Priority caps reached/ineligible, fair fallback → ${targetUnit}`);
+      let bestScore = Number.NEGATIVE_INFINITY;
+      for (const unitName of eligibleUnits) {
+        if (/freestyle/i.test(unitName) && !allShopUnitsFilled) continue;
+        if (!canStaffWorkUnit(staff.name, unitName)) continue;
+        const openingMinute = getOpeningMinuteForUnit(unitName);
+        if (staffStartMinute < openingMinute) continue;
+        const score = getPhase1UnitScore(unitName, staffStartMinute, staffEndMinute);
+        if (score > bestScore) {
+          bestScore = score;
+          targetUnit = unitName;
         }
       }
 
-      // ✅ PHASE 2 FALLBACK: If ALL units hit targets, distribute remaining staff round-robin (unlimited)
-      // This ensures NO staff are left unassigned
+      // If no eligible unit found, leave staff unassigned (strict cap enforcement)
       if (!targetUnit) {
-        // Find the unit with the lowest overflow count (round-robin distribution)
-        let minCount = Infinity;
-          for (const unitName of filteredPriorityOrder) {
-            // If this is a Freestyle unit and not all shop units are filled, skip
-            if (/freestyle/i.test(unitName) && !allShopUnitsFilled) continue;
-            if (overflowCount[unitName] < minCount) {
-              minCount = overflowCount[unitName];
-              targetUnit = unitName;
-            }
-          }
-
-        // If somehow still no target (shouldn't happen), use first available unit
-          if (!targetUnit && filteredAvailableUnits.length > 0) {
-            targetUnit = filteredAvailableUnits[0];
-          }
-
-        if (targetUnit) {
-          const target = UNIT_OVERFLOW_TARGETS[targetUnit] || 2;
-          console.log(`   📌 ${staff.name}: All targets met, round-robin distribution → ${targetUnit} (${overflowCount[targetUnit] + 1} overflow, target was ${target})`);
-        }
+        console.log(`   🚫 ${staff.name}: All units at cap, leaving unassigned.`);
+        continue;
       }
-    }
-
-    if (!targetUnit) {
-      console.log(`   ⚠️  ${staff.name}: ERROR - Could not find any available unit (this should not happen)`);
-      continue;
     }
 
     const req = staffingRequirements.find(r =>
@@ -405,7 +363,7 @@ function assignOverflowStaffStep5({
         trainingMatch: `${req.unitName}-Host-${endHour <= 14 ? 'Morning' : 'Overflow'}`,
         startTime: staff.startTime,
         endTime: staff.endTime,
-        breakMinutes: endHour <= 14 ? 0 : (staff.scheduledBreakMinutes || 0),  // No breaks for short shifts
+        breakMinutes: endHour <= 14 ? 0 : (staff.scheduledBreakMinutes || 0),
         isBreak: false,
         category: getCategoryFromUnit(req.unitName)
       });

@@ -79,6 +79,9 @@ function groupStaffByUnit(assignments, staffList) {
         unitGroups.set(primaryUnit, []);
       }
       unitGroups.get(primaryUnit).push(staff.name);
+      // Debug logging for grouping
+      const cat = getUnitCategory(primaryUnit);
+      console.log(`[GROUPING] Staff: ${staff.name} | Primary: ${primaryUnit} | Category: ${cat} | Assignments: ${staffAssignments.map(a => a.unit + ' ' + a.startTime + '-' + a.endTime).join(', ')}`);
     }
   }
 
@@ -121,13 +124,23 @@ function splitStaffBySection(sortedUnits, unitGroups) {
     const isCarParksGhi = category === 'Car Parks' || category === 'GHI';
 
     let targetArray;
-    if (isRidesSection) targetArray = ridesStaff;
-    else if (isCarParksGhi) targetArray = carParksGhiStaff;
-    else targetArray = retailStaff;
+    let sectionLabel;
+    if (isRidesSection) {
+      targetArray = ridesStaff;
+      sectionLabel = 'RIDES';
+    } else if (isCarParksGhi) {
+      targetArray = carParksGhiStaff;
+      sectionLabel = 'CAR PARKS/GHI';
+    } else {
+      targetArray = retailStaff;
+      sectionLabel = 'RETAIL/ADMISSIONS';
+    }
 
     for (const staffName of staffInUnit) {
       if (!targetArray.includes(staffName)) {
         targetArray.push(staffName);
+        // Debug logging for section placement
+        console.log(`[SECTION] Staff: ${staffName} → ${sectionLabel} (Unit: ${unitName}, Category: ${category})`);
       }
     }
   }
