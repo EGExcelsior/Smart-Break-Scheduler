@@ -119,7 +119,8 @@ function reassignEntranceStaffAfternoon({
   const suppliesFloorTime = '14:00';
   const suppliesFloorMinute = timeToMinutes(suppliesFloorTime);
   const step6UnitMaximums = {
-    'Sweet Shop': 3
+    'Sweet Shop': 3,
+    'Explorer Supplies': 3
   };
 
   const countUnitCoverageAtMinute = (unitName, minute) => updatedAssignments.filter((assignment) =>
