@@ -61,9 +61,9 @@ function formatPositionName(unit, position) {
 
 function getHomeLabel(endTime) {
   const [hour, min] = endTime.split(':').map(Number);
-  const pmHour = hour - 12;
-  if (min === 0) return `Home @${pmHour}`;
-  return `Home @${pmHour}:${min.toString().padStart(2, '0')}`;
+  const displayHour = ((hour + 11) % 12) + 1;
+  if (min === 0) return `Home @${displayHour}`;
+  return `Home @${displayHour}:${min.toString().padStart(2, '0')}`;
 }
 
 function getStaffEndTime(assignments, staffName) {

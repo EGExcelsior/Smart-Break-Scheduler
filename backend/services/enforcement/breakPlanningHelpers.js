@@ -57,6 +57,17 @@ function createBreakPlanningHelpers({
     const startMinutes = timeToMinutes(startTime);
     const endMinutes = timeToMinutes(endTime);
     const isSeniorHost = assignment.position && assignment.position.includes('Senior Host');
+    const category = assignment.category || getCategoryFromUnit(assignment.unit);
+
+    if (category === 'GHI') {
+      if (startMinutes < 600) {
+        console.log(`   🌅 ${assignment.staff || 'Staff'}: GHI early starter (${startTime}) → 12:00 break`);
+        return breakSlots[1];
+      }
+
+      console.log(`   ⏰ ${assignment.staff || 'Staff'}: GHI later starter (${startTime}) → 13:00 break`);
+      return breakSlots[2];
+    }
 
     if (endMinutes <= 900) {
       console.log(`   🕐 ${assignment.staff || 'Staff'}: Early closer (ends ${endTime}) → 11:00 break`);
@@ -562,6 +573,9 @@ function createBreakPlanningHelpers({
       const isEarlyStarter = shiftStartMin < 540;
       const isLateStarter = shiftStartMin >= 660;
       const isMidStarter = !isEarlyStarter && !isLateStarter;
+      const isGhiCategory = category === 'GHI';
+      const isGhiEarlyStarter = isGhiCategory && shiftStartMin < 600;
+      const isGhiLaterStarter = isGhiCategory && shiftStartMin >= 600;
 
       if (primaryAssignment.unit === 'Azteca Entrance' && timeToMinutes(shiftEnd) <= timeToMinutes('11:00')) {
         console.log(`   ⏭️  ${staffName}: Azteca shift ends ${shiftEnd} (no valid break window after closure)`);
@@ -601,7 +615,7 @@ function createBreakPlanningHelpers({
             const assignment = assignmentsToProcess.find((candidate) => candidate.staff === assignedStaffName);
             return assignment && assignment.category === category;
           }).length;
-          const categoryLimits = { 'Car Parks': 1, 'GHI': 1, 'Admissions': 2, 'Retail': 2 };
+          const categoryLimits = { 'Car Parks': 1, 'GHI': 2, 'Admissions': 2, 'Retail': 2 };
           const maxForCategory = categoryLimits[category] || 2;
 
           if (sameCategoryInSlot >= maxForCategory) {
@@ -610,6 +624,16 @@ function createBreakPlanningHelpers({
             for (let index = currentIndex + 1; index < breakSlots.length; index++) {
               const nextSlot = breakSlots[index];
               const nextSlotMinutes = timeToMinutes(nextSlot.start);
+              if (isGhiEarlyStarter && nextSlotMinutes > 780) {
+                targetSlot = breakSlots[2];
+                console.log(`   🌅 ${staffName}: GHI early starter cascade capped at 13:00`);
+                break;
+              }
+              if (isGhiLaterStarter && nextSlotMinutes > 900) {
+                targetSlot = breakSlots[4];
+                console.log(`   ⏰ ${staffName}: GHI later starter cascade capped at 15:00`);
+                break;
+              }
               if (isEarlyStarter && nextSlotMinutes > 780) {
                 targetSlot = breakSlots[2];
                 console.log(`   🌅 ${staffName}: Early starter cascade capped at 13:00`);
@@ -643,6 +667,14 @@ function createBreakPlanningHelpers({
             for (let index = currentIndex + 1; index < breakSlots.length; index++) {
               const nextSlot = breakSlots[index];
               const nextSlotMinutes = timeToMinutes(nextSlot.start);
+              if (isGhiEarlyStarter && nextSlotMinutes > 780) {
+                targetSlot = breakSlots[2];
+                break;
+              }
+              if (isGhiLaterStarter && nextSlotMinutes > 900) {
+                targetSlot = breakSlots[4];
+                break;
+              }
               if (isEarlyStarter && nextSlotMinutes > 780) {
                 targetSlot = breakSlots[2];
                 break;
@@ -663,7 +695,13 @@ function createBreakPlanningHelpers({
           }
 
           const finalMinutes = timeToMinutes(targetSlot.start);
-          if (isEarlyStarter && finalMinutes > 780) {
+          if (isGhiEarlyStarter && finalMinutes > 780) {
+            targetSlot = breakSlots[2];
+            console.log(`   🔒 ${staffName}: GHI early starter hard cap → 13:00`);
+          } else if (isGhiLaterStarter && finalMinutes > 900) {
+            targetSlot = breakSlots[4];
+            console.log(`   🔒 ${staffName}: GHI later starter hard cap → 15:00`);
+          } else if (isEarlyStarter && finalMinutes > 780) {
             targetSlot = breakSlots[2];
             console.log(`   🔒 ${staffName}: Hard cap → 13:00`);
           } else if (isMidStarter && finalMinutes > 840) {
@@ -672,6 +710,15 @@ function createBreakPlanningHelpers({
           } else if (isLateStarter && finalMinutes > 900) {
             targetSlot = breakSlots[4];
             console.log(`   🔒 ${staffName}: Hard cap → 15:00`);
+          }
+
+          if (isGhiEarlyStarter && timeToMinutes(targetSlot.start) < 720) {
+            targetSlot = breakSlots[1];
+            console.log(`   🔓 ${staffName}: GHI early starter floor → 12:00`);
+          }
+          if (isGhiLaterStarter && timeToMinutes(targetSlot.start) < 780) {
+            targetSlot = breakSlots[2];
+            console.log(`   🔓 ${staffName}: GHI later starter floor → 13:00`);
           }
         }
       }
