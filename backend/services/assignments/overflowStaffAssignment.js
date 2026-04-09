@@ -300,10 +300,18 @@ function assignOverflowStaffStep5({
       }
     }
 
+      // Prevent assignment to Azteca after 10:00 (should only be handled by pre-pass)
+      const AZTECA_UNIT = 'Azteca Entrance';
+      const AZTECA_CLOSE_MINUTE = timeToMinutes('10:00');
+
     // If no target yet (either full-shift or Lodge not available/at cap for short-shift)
     if (!targetUnit) {
       const staffStartMinute = timeToMinutes(staff.startTime);
       const staffEndMinute = timeToMinutes(staff.endTime);
+
+        // Exclude Azteca from all overflow/fallback assignments after 10:00
+        const filteredPriorityOrder = PRIORITY_ORDER.filter(unit => unit !== AZTECA_UNIT);
+        const filteredAvailableUnits = availableUnits.filter(unit => unit !== AZTECA_UNIT);
 
       // Enforce: Do not assign to Freestyle & Vending until all shop units are fully staffed
       const allShopUnitsFilled = shopUnits.every(unit => {
@@ -313,30 +321,36 @@ function assignOverflowStaffStep5({
       });
 
       let bestPhase1Score = Number.NEGATIVE_INFINITY;
-      for (const unitName of PRIORITY_ORDER) {
-        // If this is a Freestyle unit and not all shop units are filled, skip
-        if (/freestyle/i.test(unitName) && !allShopUnitsFilled) continue;
-        if (!canStaffWorkUnit(staff.name, unitName)) continue;
-        const score = getPhase1UnitScore(unitName, staffStartMinute, staffEndMinute);
-        if (score > bestPhase1Score) {
-          bestPhase1Score = score;
-          targetUnit = unitName;
+        for (const unitName of filteredPriorityOrder) {
+          // If this is a Freestyle unit and not all shop units are filled, skip
+          if (/freestyle/i.test(unitName) && !allShopUnitsFilled) continue;
+          if (!canStaffWorkUnit(staff.name, unitName)) continue;
+          // Prevent assigning before unit opening time
+          const openingMinute = getOpeningMinuteForUnit(unitName);
+          if (staffStartMinute < openingMinute) continue;
+          const score = getPhase1UnitScore(unitName, staffStartMinute, staffEndMinute);
+          if (score > bestPhase1Score) {
+            bestPhase1Score = score;
+            targetUnit = unitName;
+          }
         }
-      }
 
       // ✅ If all priority units at cap/ineligible, try all available units by fair score
       if (!targetUnit) {
         let bestPhase2Score = Number.NEGATIVE_INFINITY;
-        for (const unitName of availableUnits) {
-          // If this is a Freestyle unit and not all shop units are filled, skip
-          if (/freestyle/i.test(unitName) && !allShopUnitsFilled) continue;
-          if (!canStaffWorkUnit(staff.name, unitName)) continue;
-          const score = getPhase2UnitScore(unitName, staffEndMinute);
-          if (score > bestPhase2Score) {
-            bestPhase2Score = score;
-            targetUnit = unitName;
+          for (const unitName of filteredAvailableUnits) {
+            // If this is a Freestyle unit and not all shop units are filled, skip
+            if (/freestyle/i.test(unitName) && !allShopUnitsFilled) continue;
+            if (!canStaffWorkUnit(staff.name, unitName)) continue;
+            // Prevent assigning before unit opening time
+            const openingMinute = getOpeningMinuteForUnit(unitName);
+            if (staffStartMinute < openingMinute) continue;
+            const score = getPhase2UnitScore(unitName, staffEndMinute);
+            if (score > bestPhase2Score) {
+              bestPhase2Score = score;
+              targetUnit = unitName;
+            }
           }
-        }
 
         if (targetUnit) {
           console.log(`   📌 ${staff.name}: Priority caps reached/ineligible, fair fallback → ${targetUnit}`);
@@ -348,19 +362,19 @@ function assignOverflowStaffStep5({
       if (!targetUnit) {
         // Find the unit with the lowest overflow count (round-robin distribution)
         let minCount = Infinity;
-        for (const unitName of PRIORITY_ORDER) {
-          // If this is a Freestyle unit and not all shop units are filled, skip
-          if (/freestyle/i.test(unitName) && !allShopUnitsFilled) continue;
-          if (overflowCount[unitName] < minCount) {
-            minCount = overflowCount[unitName];
-            targetUnit = unitName;
+          for (const unitName of filteredPriorityOrder) {
+            // If this is a Freestyle unit and not all shop units are filled, skip
+            if (/freestyle/i.test(unitName) && !allShopUnitsFilled) continue;
+            if (overflowCount[unitName] < minCount) {
+              minCount = overflowCount[unitName];
+              targetUnit = unitName;
+            }
           }
-        }
 
         // If somehow still no target (shouldn't happen), use first available unit
-        if (!targetUnit && availableUnits.length > 0) {
-          targetUnit = availableUnits[0];
-        }
+          if (!targetUnit && filteredAvailableUnits.length > 0) {
+            targetUnit = filteredAvailableUnits[0];
+          }
 
         if (targetUnit) {
           const target = UNIT_OVERFLOW_TARGETS[targetUnit] || 2;
