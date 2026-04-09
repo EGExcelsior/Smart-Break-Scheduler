@@ -601,7 +601,7 @@ function createBreakPlanningHelpers({
             const assignment = assignmentsToProcess.find((candidate) => candidate.staff === assignedStaffName);
             return assignment && assignment.category === category;
           }).length;
-          const categoryLimits = { 'Car Parks': 1, 'GHI': 2, 'Admissions': 2, 'Retail': 2 };
+          const categoryLimits = { 'Car Parks': 1, 'GHI': 1, 'Admissions': 2, 'Retail': 2 };
           const maxForCategory = categoryLimits[category] || 2;
 
           if (sameCategoryInSlot >= maxForCategory) {
