@@ -40,6 +40,7 @@ const PLANNER_STAFF_ROW_HEIGHT = 35;
 const PLANNER_SECTION_TITLE_ROW_HEIGHT = 30;
 const PLANNER_HEADER_ROW_HEIGHT = 22;
 const PLANNER_TIME_COLUMN_WIDTH = 11;
+const PLANNER_SECTION_SPACER_HEIGHT = 18;
 
 // Helper function to check if a staff member is a Senior Host (with fuzzy name matching)
 function isSeniorHost(staffName, seniorHostList) {
@@ -441,7 +442,8 @@ async function generateExcelPlanner(scheduleData) {
       explorerColor,
       seniorHostStaff,
       useExplorerHighlight: true,
-      breakBorderWithBlack: true
+      breakBorderWithBlack: true,
+      postSpacerHeight: PLANNER_SECTION_SPACER_HEIGHT
     });
     renderStaffTableSection({
       worksheet,
@@ -455,7 +457,8 @@ async function generateExcelPlanner(scheduleData) {
       explorerColor,
       seniorHostStaff,
       useExplorerHighlight: false,
-      breakBorderWithBlack: false
+      breakBorderWithBlack: false,
+      postSpacerHeight: PLANNER_SECTION_SPACER_HEIGHT
     });
     renderStaffTableSection({
       worksheet,
@@ -485,7 +488,8 @@ async function generateExcelPlanner(scheduleData) {
       explorerColor,
       seniorHostStaff,
       useExplorerHighlight: true,
-      breakBorderWithBlack: true
+      breakBorderWithBlack: true,
+      postSpacerHeight: PLANNER_SECTION_SPACER_HEIGHT
     });
     renderStaffTableSection({
       worksheet,
@@ -499,7 +503,8 @@ async function generateExcelPlanner(scheduleData) {
       explorerColor,
       seniorHostStaff,
       useExplorerHighlight: true,
-      breakBorderWithBlack: true
+      breakBorderWithBlack: true,
+      postSpacerHeight: PLANNER_SECTION_SPACER_HEIGHT
     });
     renderStaffTableSection({
       worksheet,

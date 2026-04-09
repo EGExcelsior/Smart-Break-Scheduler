@@ -568,7 +568,7 @@ function createBreakPlanningHelpers({
 
       const unit = primaryAssignment.unit;
       let targetSlot = getPreferredBreakSlot(primaryAssignment, breakSlots);
-      const category = primaryAssignment.category;
+      const category = primaryAssignment.category || getCategoryFromUnit(primaryAssignment.unit);
       const shiftStartMin = timeToMinutes(primaryAssignment.startTime || '09:00');
       const isEarlyStarter = shiftStartMin < 540;
       const isLateStarter = shiftStartMin >= 660;
@@ -605,7 +605,11 @@ function createBreakPlanningHelpers({
           }
 
           const finalMinutes = timeToMinutes(targetSlot.start);
-          if (isEarlyStarter && finalMinutes > 780) {
+          if (isGhiEarlyStarter && finalMinutes > 780) {
+            targetSlot = breakSlots[2];
+          } else if (isGhiLaterStarter && finalMinutes > 900) {
+            targetSlot = breakSlots[4];
+          } else if (isEarlyStarter && finalMinutes > 780) {
             targetSlot = breakSlots[2];
           } else if (isMidStarter && finalMinutes > 840) {
             targetSlot = breakSlots[3];
@@ -742,6 +746,27 @@ function createBreakPlanningHelpers({
         }
       }
 
+      // Enforce deterministic GHI windows after all shifts/capacity adjustments.
+      if (isGhiEarlyStarter) {
+        const slotMinutes = timeToMinutes(targetSlot.start);
+        if (slotMinutes < 720) {
+          targetSlot = breakSlots[1];
+          console.log(`   🔓 ${staffName}: GHI early starter floor → 12:00`);
+        } else if (slotMinutes > 780) {
+          targetSlot = breakSlots[2];
+          console.log(`   🔒 ${staffName}: GHI early starter ceiling → 13:00`);
+        }
+      } else if (isGhiLaterStarter) {
+        const slotMinutes = timeToMinutes(targetSlot.start);
+        if (slotMinutes < 780) {
+          targetSlot = breakSlots[2];
+          console.log(`   🔓 ${staffName}: GHI later starter floor → 13:00`);
+        } else if (slotMinutes > 900) {
+          targetSlot = breakSlots[4];
+          console.log(`   🔒 ${staffName}: GHI later starter ceiling → 15:00`);
+        }
+      }
+
       const isExplorerSuppliesCriticalSlot =
         primaryAssignment.unit === 'Explorer Supplies' &&
         targetSlot &&
@@ -797,6 +822,12 @@ function createBreakPlanningHelpers({
           if (timeToMinutes(slot.start) < timeToMinutes('12:00')) {
             return false;
           }
+          if (isGhiEarlyStarter && (timeToMinutes(slot.start) < 720 || timeToMinutes(slot.start) > 780)) {
+            return false;
+          }
+          if (isGhiLaterStarter && (timeToMinutes(slot.start) < 780 || timeToMinutes(slot.start) > 900)) {
+            return false;
+          }
           if (isEarlyClose && slot.start === '15:00') {
             return false;
           }
@@ -829,6 +860,12 @@ function createBreakPlanningHelpers({
           }
         } else {
           alternateSlot = breakSlots.find((slot) => {
+            if (isGhiEarlyStarter && (timeToMinutes(slot.start) < 720 || timeToMinutes(slot.start) > 780)) {
+              return false;
+            }
+            if (isGhiLaterStarter && (timeToMinutes(slot.start) < 780 || timeToMinutes(slot.start) > 900)) {
+              return false;
+            }
             if (isEarlyClose && slot.start === '15:00') {
               return false;
             }
