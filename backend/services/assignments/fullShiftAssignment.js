@@ -1,5 +1,11 @@
 
 function assignFullShiftHostsStep2(options) {
+    // Helper: get opening time for a unit (default 10:00, B&J's 12:00)
+    function getOpeningTimeForUnit(unitName) {
+      if (unitName && unitName.includes("Ben & Jerry's")) return '12:00';
+      // Add more unit-specific opening times here if needed
+      return '10:00';
+    }
   const {
     fullShiftAssignments,
     filledPositions,
@@ -91,6 +97,21 @@ function assignFullShiftHostsStep2(options) {
         availableHost = staffByType.regularHostsFullShift.find((staff) => !assignedStaff.has(staff.name));
       }
 
+      // Enforce unit opening time for assignment
+      let assignmentStartTime = availableHost ? availableHost.startTime : null;
+      let assignmentEndTime = availableHost ? availableHost.endTime : null;
+      const unitOpeningTime = getOpeningTimeForUnit(assignment.req.unitName);
+      // If staff starts before unit opens, adjust start time to opening
+      if (availableHost && assignmentStartTime && assignmentStartTime < unitOpeningTime) {
+        assignmentStartTime = unitOpeningTime;
+        // If the adjusted start time is after or equal to end time, skip assignment
+        if (assignmentStartTime >= assignmentEndTime) {
+          log(`   SKIP ${availableHost.name} for ${assignment.req.unitName}: shift (${availableHost.startTime}-${availableHost.endTime}) does not overlap with opening (${unitOpeningTime})`);
+          assignedStaff.add(availableHost.name); // Prevent infinite loop
+          continue;
+        }
+      }
+
       // Only assign Senior Hosts to retail if all entrance Senior Host reqs are filled
       if (
         assignment.req.position && assignment.req.position.includes('Senior Host') &&
@@ -135,8 +156,8 @@ function assignFullShiftHostsStep2(options) {
           zone,
           dayCode,
           trainingMatch: `${assignment.req.unitName}-Host`,
-          startTime: availableHost.startTime,
-          endTime: availableHost.endTime,
+          startTime: assignmentStartTime,
+          endTime: assignmentEndTime,
           breakMinutes: availableHost.scheduledBreakMinutes || 0,
           isBreak: false,
           category: getCategoryFromUnit(assignment.req.unitName)
@@ -144,7 +165,7 @@ function assignFullShiftHostsStep2(options) {
         assignedStaff.add(availableHost.name);
         filledPositions.set(assignment.unitPositionKey, (filledPositions.get(assignment.unitPositionKey) || 0) + 1);
         assignedCount += 1;
-        log(`   OK ${availableHost.name} -> ${assignment.req.unitName} (Host, ${availableHost.startTime}-${availableHost.endTime})`);
+        log(`   OK ${availableHost.name} -> ${assignment.req.unitName} (Host, ${assignmentStartTime}-${assignmentEndTime})`);
       } else {
         log(`   WARNING No available full-shift host for ${assignment.req.unitName}`);
         break;
