@@ -497,6 +497,17 @@ router.post('/auto-assign', upload.fields([
     console.log(`   → ${staffByType.regularHostsShortShift.length} Regular Hosts (short shift 09:15-13:00)`);
     console.log(`   → ${staffByType.regularHostsMidShift.length} Regular Hosts (mid shift for break cover)`);
 
+    // Debug: Print start/end times for Alex Desbruslais and Catherine Wong
+    const debugNames = ["Alex Desbruslais", "Catherine Wong"];
+    for (const name of debugNames) {
+      const found = staffByType.regularHostsFullShift.find(s => s.name.trim().toLowerCase() === name.toLowerCase());
+      if (found) {
+        console.log(`   [DEBUG] ${name}: startTime=${found.startTime}, endTime=${found.endTime}`);
+      } else {
+        console.log(`   [DEBUG] ${name}: NOT FOUND in regularHostsFullShift`);
+      }
+    }
+
     const aztecaPrePassResult = applyAztecaPrePass({
       staffingRequirements,
       staffByType,
